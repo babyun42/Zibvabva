@@ -1022,6 +1022,7 @@ end
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Window = Rayfield:CreateWindow({
+   Theme = _G.HubTheme or "Default", 
    Name = "Zibvabva | 0.3 beta",
    LoadingTitle = "Zibvabva Loading...",
    LoadingSubtitle = "Thank you for using Zibvabva",
