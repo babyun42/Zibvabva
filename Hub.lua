@@ -1,6 +1,6 @@
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local darkThemes = {"Dark", "AmberBlue", "Amethyst", "DarkBlue"}
+local darkThemes = {"AmberBlue"(Default), "Amethyst", "DarkBlue"}
 local lightThemes = {"Light", "Bloom", "Green", "Ocean", "Serenity"}
 
 local savedTheme = "Default"
