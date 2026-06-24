@@ -1,3 +1,23 @@
-Welcome to my project , Zibvabva -
+# Zibvabva - Универсальный хаб скриптов для Roblox
 
-a free cheat hub for Roblox, which contains cheats of various types: for individual places, other hubs, universal ones, and so on.
+Добро пожаловать в мой проект, Zibvabva — бесплатный хаб скриптов для Roblox, который содержит скрипты различных типов: универсальные, для отдельных плейсов, другие хабы и многое другое.
+
+---
+
+## 🚀 Функции (Features)
+
+Этот хаб разработан в современном стиле Google Material 3 и предлагает следующие возможности:
+
+*   🌐 **Универсальные скрипты (Universal Lua):** Поддержка скриптов, работающих во многих плейсах.
+*   📍 **Специфичные для плейсов (Place Specific):** Сценарии, оптимизированные для конкретных карт.
+*   🔄 **Регулярные обновления (Regular Updates):** Я постоянно добавляю новые функции и исправляю ошибки.
+*   ✅ **Легкий в использовании (Easy To Use):** Простой интерфейс, интуитивно понятное управление.
+
+---
+
+## 💻 Быстрый старт (Quick Start)
+
+Чтобы запустить Zibvabva Script Hub, скопируйте следующий код и вставьте его в свой исполнитель скриптов в Roblox:
+
+```lua
+loadstring(game:HttpGet("[https://raw.githubusercontent.com/babyun42/Zibvabva/main/hub.lua](https://raw.githubusercontent.com/babyun42/Zibvabva/main/hub.lua)"))()
