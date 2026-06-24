@@ -4,7 +4,7 @@
 
 ---
 
-## 🚀 Функции (Features)
+## 🚀 Features
 
 Этот хаб разработан в современном стиле Google Material 3 и предлагает следующие возможности:
 
@@ -17,7 +17,6 @@
 
 ## 💻 Быстрый старт (Quick Start)
 
-Чтобы запустить Zibvabva Script Hub, скопируйте следующий код и вставьте его в свой исполнитель скриптов в Roblox:
+Чтобы запустить Zibvabva Hub, скопируйте следующий код и вставьте его в свой исполнитель скриптов в Roblox:
 
 ```lua
-loadstring(game:HttpGet("[https://raw.githubusercontent.com/babyun42/Zibvabva/main/hub.lua](https://raw.githubusercontent.com/babyun42/Zibvabva/main/hub.lua)"))()
