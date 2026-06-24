@@ -1344,7 +1344,7 @@ VisualsTab:CreateKeybind({
 -- 3 ЧАСТЬ
 --========================================================
 
-local CombatTab = Window:CreateTab("Aimbot", "crosshair")
+local CombatTab = Window:CreateTab("Combat", "crosshair")
 
 CombatTab:CreateSection("Aim Settings")
 
@@ -1478,15 +1478,15 @@ end
 
 CombatTab:CreateInput({
    Name = "Target Player Name",
-   PlaceholderText = "Введите ник и нажмите Enter...",
+   PlaceholderText = "Enter your nickname and press Enter...",
    RemoveTextAfterFocusLost = false,
    Callback = function(Text)
        TargetPlayer = findTarget(Text)
 
        if not TargetPlayer then
            Rayfield:Notify({
-               Title = "Ошибка",
-               Content = "Игрок не найден!",
+               Title = "Error",
+               Content = "Player not found!",
                Duration = 3,
                Image = 4483362458,
            })
@@ -1495,7 +1495,7 @@ CombatTab:CreateInput({
 
        Rayfield:Notify({
            Title = "Fling System",
-           Content = "Цель найдена: " .. TargetPlayer.DisplayName .. " (@" .. TargetPlayer.Name .. ")",
+           Content = "Target found: " .. TargetPlayer.DisplayName .. " (@" .. TargetPlayer.Name .. ")",
            Duration = 3,
            Image = 4483362458,
        })
@@ -1507,8 +1507,8 @@ CombatTab:CreateButton({
    Callback = function()
        if not TargetPlayer then
            Rayfield:Notify({
-               Title = "Ошибка",
-               Content = "Сначала найдите игрока (нажмите Enter в поле поиска)!",
+               Title = "Error",
+               Content = "First, find a player (press Enter in the search field)!",
                Duration = 3,
                Image = 4483362458,
            })
