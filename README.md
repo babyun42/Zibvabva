@@ -24,4 +24,4 @@ This hub was developed by just one person. If you find bugs or scripts from othe
 To launch Zibvabva Hub, copy the following code and paste it into your script runner in Roblox:
 
 ```lua
-https://raw.githubusercontent.com/babyun42/Zibvabva/refs/heads/main/hub.lua
+loadstring(game:HttpGet("https://raw.githubusercontent.com/babyun42/Zibvabva/refs/heads/main/hub.lua", true))()
