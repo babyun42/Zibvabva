@@ -2,25 +2,26 @@
   <img src="preview.png" alt="Zibvabva Hub Preview" width="100%">
 </p>
 
-# Zibvabva - Универсальный хаб скриптов для Roblox
+# Zibvabva - A universal script hub for Roblox
 
-Добро пожаловать в мой проект, Zibvabva — бесплатный хаб скриптов для Roblox, который содержит скрипты различных типов: универсальные, для отдельных плейсов, другие хабы и многое другое.
+Welcome to my project, Zibvabva - a free script hub for Roblox, which contains scripts of various types: universal, for individual places, other hubs, and much more.
 
 ---
 
 ## 🚀 Features
 
-Этот хаб разработан в современном стиле Google Material 3 и предлагает следующие возможности:
+This hub was developed by just one person. If you find bugs or scripts from other developers, please write in the issue. It offers the following features:
 
-*   🌐 **Universal Lua:** Поддержка скриптов, работающих во многих плейсах.
-*   📍 **Place Specific:** Сценарии, оптимизированные для конкретных карт.
-*   🔄 **Regular Updates:** Я постоянно добавляю новые функции и исправляю ошибки.
-*   ✅ **Easy To Use:** Простой интерфейс, интуитивно понятное управление.
+*   🌐 **Universal Lua:** Support for scripts that work in many places.
+*   📍 **Place Specific:** Scenarios optimized for specific maps.
+*   🔄 **Regular Updates:** I am constantly adding new features and fixing bugs.
+*   ✅ **Easy To Use:** Simple interface, intuitive controls.
 
 ---
 
 ## 💻 Quick Start
 
-Чтобы запустить Zibvabva Hub, скопируйте следующий код и вставьте его в свой исполнитель скриптов в Roblox:
+To launch Zibvabva Hub, copy the following code and paste it into your script runner in Roblox:
 
 ```lua
+https://raw.githubusercontent.com/babyun42/Zibvabva/refs/heads/main/hub.lua
