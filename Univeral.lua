@@ -11,7 +11,6 @@ local Mouse = LocalPlayer:GetMouse()
 local ContextActionService = game:GetService("ContextActionService")
 local StarterGui = game:GetService("StarterGui")
 local Workspace = game:GetService("Workspace")
-local GameSettings = UserSettings().GameSettings
 
 local Config = {
     Camera_FOV = 70,
@@ -188,16 +187,30 @@ pcall(function()
 end)
 perfGui.Parent = parentGui
 
+-- Создаем основной контейнер (VStack)
+local mainContainer = Instance.new("Frame")
+mainContainer.Name = "MainContainer"
+mainContainer.Parent = perfGui
+mainContainer.AnchorPoint = Vector2.new(1, 0)
+mainContainer.Position = UDim2.new(1, -22, 0, 30)
+mainContainer.Size = UDim2.new(0, 160, 0, 500) -- Высота с запасом
+mainContainer.BackgroundTransparency = 1
+
+local freecamBtn = Instance.new("TextButton")
+freecamBtn.Text = "Toggle Freecam"
+freecamBtn.Size = UDim2.new(1, 0, 0, 40)
+freecamBtn.Parent = mainContainer -- Он автоматически упадет под PerfOverlay
+freecamBtn.MouseButton1Click:Connect(function()
+    ToggleFreecam(not freecamActive)
+end)
+
+-- Теперь твой perfFrame будет внутри этого контейнера
 local perfFrame = Instance.new("Frame")
-perfFrame.Name = "Container"
-perfFrame.AnchorPoint = Vector2.new(1, 0)
-perfFrame.Position = UDim2.new(1, -22, 0, 30)
-perfFrame.Size = UDim2.fromOffset(160, 100)
+perfFrame.Name = "PerfOverlay"
+perfFrame.Size = UDim2.new(1, 0, 0, 100) -- Ширина 100% от контейнера
 perfFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
 perfFrame.BackgroundTransparency = 0.3
-perfFrame.BorderSizePixel = 0
-perfFrame.Active = true
-perfFrame.Parent = perfGui
+perfFrame.Parent = mainContainer -- СТАВИМ РОДИТЕЛЕМ КОНТЕЙНЕР
 
 local corner = Instance.new("UICorner")
 corner.CornerRadius = UDim.new(0, 10)
@@ -216,11 +229,12 @@ padding.PaddingLeft = UDim.new(0, 12)
 padding.PaddingRight = UDim.new(0, 12)
 padding.Parent = perfFrame
 
+-- Добавляем UIListLayout для вертикального выравнивания
 local layout = Instance.new("UIListLayout")
+layout.Parent = mainContainer
 layout.FillDirection = Enum.FillDirection.Vertical
 layout.SortOrder = Enum.SortOrder.LayoutOrder
-layout.Padding = UDim.new(0, 3)
-layout.Parent = perfFrame
+layout.Padding = UDim.new(0, 10) -- Расстояние между элементами
 
 local function makeRow(name, color, order)
     local lbl = Instance.new("TextLabel")
@@ -625,7 +639,6 @@ local function flingAllLoop()
     end
 end
 
-
 local antiFlingEnabled = false
 local antiFlingConnection = nil
 local playerPartsCache = {}
@@ -705,7 +718,7 @@ local function patchPlayerList()
                     obj.Text = nameTagText .. " " .. txt
                     obj.TextColor3 = nameTagColor
                 end
-            end
+             end
         end
     end
 end
@@ -728,7 +741,7 @@ local function patchScoreboard()
             local nl = sample:FindFirstChild("name")
             if nl and nl:IsA("TextLabel") and nl.Text:find(player.Name, 1, true) then
                 if not nl.Text:find(nameTagText, 1, true) then
-                    nl.Text = nameTagText .. " " .. nl.Text
+                     nl.Text = nameTagText .. " " .. nl.Text
                     nl.TextColor3 = nameTagColor
                 end
             end
@@ -761,7 +774,7 @@ local function GetTarget()
     for _, p in pairs(Players:GetPlayers()) do
         if p ~= LocalPlayer and p.Character and p.Character:FindFirstChild(Config.TargetPart) then
             if Config.TeamCheck and p.Team == LocalPlayer.Team then continue end
-            
+             
             local Part = p.Character[Config.TargetPart]
             local ScreenPos, OnScreen = Camera:WorldToViewportPoint(Part.Position)
 
@@ -793,7 +806,7 @@ UserInputService.InputEnded:Connect(function(input, gameProcessed)
     if Config.AimKey == "RightClick" and input.UserInputType == Enum.UserInputType.MouseButton2 then
         IsLocking = false
     elseif Config.AimKey == "LeftClick" and input.UserInputType == Enum.UserInputType.MouseButton1 then
-        IsLocking = false
+         IsLocking = false
     elseif input.KeyCode.Name == Config.AimKey then
         IsLocking = false
     end
@@ -841,19 +854,12 @@ local sign  = math.sign
 local sqrt  = math.sqrt
 local tan   = math.tan
 
-local LocalPlayer = Players.LocalPlayer
-if not LocalPlayer then
-	Players:GetPropertyChangedSignal("LocalPlayer"):Wait()
-	LocalPlayer = Players.LocalPlayer
-end
-
 local Camera = Workspace.CurrentCamera
 Workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
 	local newCamera = Workspace.CurrentCamera
 	if newCamera then Camera = newCamera end
 end)
 
-local FFlagUserExitFreecamBreaksWithShiftlock = pcall(function() return UserSettings():IsUserFeatureEnabled("UserExitFreecamBreaksWithShiftlock") end)
 local FFlagUserShowGuiHideToggles = pcall(function() return UserSettings():IsUserFeatureEnabled("UserShowGuiHideToggles") end)
 
 local FREECAM_ENABLED_ATTRIBUTE_NAME = "FreecamEnabled"
@@ -921,10 +927,7 @@ local Input = {} do
 	end
 
 	local function Keypress(action, state, input) keyboard[input.KeyCode.Name] = state == Enum.UserInputState.Begin and 1 or 0 return Enum.ContextActionResult.Sink end
-	local function GpButton(action, state, input) gamepad[input.KeyCode.Name] = state == Enum.UserInputState.Begin and 1 or 0 return Enum.ContextActionResult.Sink end
 	local function MousePan(action, state, input) local delta = input.Delta mouse.Delta = Vector2.new(-delta.y, -delta.x) return Enum.ContextActionResult.Sink end
-	local function Thumb(action, state, input) gamepad[input.KeyCode.Name] = input.Position return Enum.ContextActionResult.Sink end
-	local function Trigger(action, state, input) gamepad[input.KeyCode.Name] = input.Position.z return Enum.ContextActionResult.Sink end
 	local function MouseWheel(action, state, input) mouse[input.UserInputType.Name] = -input.Position.z return Enum.ContextActionResult.Sink end
 
 	function Input.StartCapture()
@@ -987,8 +990,6 @@ local PlayerState = {} do
 	end
 end
 
-local freecamActive = false
-
 local function StartFreecam()
 	if freecamActive then return end
 	freecamActive = true
@@ -1015,286 +1016,366 @@ local function ToggleFreecam(state)
 	if state then StartFreecam() else StopFreecam() end
 end
 
+local Lighting = game:GetService("Lighting")
+local gammaEffect = Lighting:FindFirstChild("GammaCorrection") or Instance.new("ColorCorrectionEffect")
+gammaEffect.Name = "GammaCorrection"
+gammaEffect.Parent = Lighting
+
+local function setGamma(value)
+    gammaEffect.Brightness = math.clamp(value, -1, 1)
+end
+
+local HitboxConfig = {
+    Enabled = false,
+    Size = 15,
+    Color = Color3.fromRGB(150, 150, 150),
+    Transparency = 0.7
+}
+
+RunService.RenderStepped:Connect(function()
+    if HitboxConfig.Enabled then
+        for _, p in ipairs(Players:GetPlayers()) do
+            if p ~= LocalPlayer and p.Character then
+                local hrp = p.Character:FindFirstChild("HumanoidRootPart")
+                if hrp then
+                    hrp.Size = Vector3.new(HitboxConfig.Size, HitboxConfig.Size, HitboxConfig.Size)
+                    hrp.Transparency = HitboxConfig.Transparency
+                    hrp.Color = HitboxConfig.Color
+                    hrp.Material = Enum.Material.Neon
+                    hrp.CanCollide = false
+                end
+            end
+        end
+    end
+end)
+
+local function ResetHitboxes()
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= LocalPlayer and p.Character then
+            local hrp = p.Character:FindFirstChild("HumanoidRootPart")
+            if hrp then
+                -- Стандартные параметры HumanoidRootPart в Roblox
+                hrp.Size = Vector3.new(2, 2, 1) 
+                hrp.Transparency = 1
+                hrp.CanCollide = false
+            end
+        end
+    end
+end
+
+local InfiniteJumpEnabled = false
+
+UserInputService.JumpRequest:Connect(function()
+    if InfiniteJumpEnabled then
+        local char = player.Character
+        local hum = char and char:FindFirstChildOfClass("Humanoid")
+        if hum then
+            hum:ChangeState(Enum.HumanoidStateType.Jumping)
+        end
+    end
+end)
+
+local spinbotEnabled = false
+local spinbotSpeed = 20 
+
+RunService.RenderStepped:Connect(function()
+    if spinbotEnabled then
+        local char = player.Character
+        local hrp = char and char:FindFirstChild("HumanoidRootPart")
+        if hrp then
+            hrp.CFrame = hrp.CFrame * CFrame.Angles(0, math.rad(spinbotSpeed), 0)
+        end
+    end
+end)
+
+
 
 --========================================================
--- ИНТЕРФЕЙС , 1 ЧАСТЬ
+-- ИНТЕРФЕЙС 
 --========================================================
-local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+local _version = "1.6.65"
+local WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/download/" .. _version .. "/main.lua"))() 
 
-local Window = Rayfield:CreateWindow({
-   Theme = _G.HubTheme or "Default", 
-   Name = "Zibvabva | 0.3 beta",
-   LoadingTitle = "Zibvabva Loading...",
-   LoadingSubtitle = "Thank you for using Zibvabva",
-   ConfigurationSaving = { Enabled = true },
-   Discord = { Enabled = false },
-   KeySystem = false
+local Window = WindUI:CreateWindow({
+    Title = "Zibvabva | 0.4 alpha",
+    Icon = "sparkles", 
+    Author = "babyun42",
+    Folder = "ZibvabvaConfigs",
+    Size = UDim2.fromOffset(980, 560),
+    Transparent = true,
+    Theme = "Dark",
+    KeySystem = false
 })
 
-local PlayerTab = Window:CreateTab("Player", "user")
-
-PlayerTab:CreateSection("Main Movement")
-
-PlayerTab:CreateSlider({
-   Name = "WalkSpeed",
-   Range = {16, 300},
-   Increment = 1,
-   Suffix = " Speed",
-   CurrentValue = 16,
-   Flag = "WalkSpeedSlider",
-   Callback = function(Value)
-       game.Players.LocalPlayer.Character.Humanoid.WalkSpeed = Value
-   end,
+WindUI:Notify({
+    Title = "Welcome",
+    Content = "Thank you for using Zibvabva Hub!",
+    Icon = "check",
+    Duration = 3,
 })
 
-PlayerTab:CreateSlider({
-   Name = "JumpPower",
-   Range = {50, 400},
-   Increment = 1,
-   Suffix = " Power",
-   CurrentValue = 50,
-   Flag = "JumpPowerSlider",
-   Callback = function(Value)
-       game.Players.LocalPlayer.Character.Humanoid.JumpPower = Value
-   end,
+local PlayerTab = Window:Tab({ Title = "Player", Icon = "user" })
+local VisualsTab = Window:Tab({ Title = "Visuals", Icon = "eye" })
+local CombatTab = Window:Tab({ Title = "Combat", Icon = "crosshair" })
+local SettingsTab = Window:Tab({ Title = "Settings", Icon = "settings" })
+
+--========================================================
+-- ВКЛАДКА 1: PLAYER
+--========================================================
+PlayerTab:Section({ Title = "Main Movement" })
+
+PlayerTab:Slider({
+    Title = "WalkSpeed",
+    Desc = "Настрой скорость персонажа",
+    Step = 1,
+    Value = { Min = 16, Max = 300, Default = 16 },
+    Callback = function(Value)
+        game.Players.LocalPlayer.Character.Humanoid.WalkSpeed = Value
+    end
 })
 
-PlayerTab:CreateSection("Flight Settings")
-
-local FlyToggle = PlayerTab:CreateToggle({
-   Name = "Fly",
-   CurrentValue = false,
-   Flag = "FlyToggle",
-   Callback = function(Value)
-       if isFlying ~= Value then setFlightState(Value) end
-   end,
+PlayerTab:Slider({
+    Title = "JumpPower",
+    Desc = "Настрой силу прыжка",
+    Step = 1,
+    Value = { Min = 50, Max = 400, Default = 50 },
+    Callback = function(Value)
+        game.Players.LocalPlayer.Character.Humanoid.JumpPower = Value
+    end
 })
 
-PlayerTab:CreateSlider({
-   Name = "Fly Speed",
-   Range = {20, 300},
-   Increment = 1,
-   Suffix = " Speed",
-   CurrentValue = 60,
-   Flag = "FlySpeedSlider",
-   Callback = function(Value)
-       flySpeed = Value
-   end,
+PlayerTab:Toggle({
+    Title = "Infinite Jump",
+    Desc = "Позволяет прыгать в воздухе (Бесконечно)",
+    Value = false,
+    Callback = function(Value)
+        InfiniteJumpEnabled = Value
+    end
 })
 
-PlayerTab:CreateKeybind({
-   Name = "Fly Keybind",
-   CurrentKeybind = "F",
-   HoldToInteract = false,
-   Flag = "FlyBind",
-   Callback = function()
-       FlyToggle:Set(not isFlying)
-   end,
+PlayerTab:Section({ Title = "Flight Settings" })
+
+local FlyToggle = PlayerTab:Toggle({
+    Title = "Fly",
+    Desc = "Включить/выключить полет",
+    Value = false,
+    Callback = function(Value)
+        if isFlying ~= Value then setFlightState(Value) end
+    end
 })
 
-PlayerTab:CreateSection("Noclip Settings")
-
-local NoclipToggle = PlayerTab:CreateToggle({
-   Name = "Noclip",
-   CurrentValue = false,
-   Flag = "NoclipToggle",
-   Callback = function(Value)
-       if isNoclip ~= Value then setNoclipState(Value) end
-   end,
+PlayerTab:Slider({
+    Title = "Fly Speed",
+    Desc = "Скорость в режиме полета",
+    Step = 1,
+    Value = { Min = 20, Max = 300, Default = 60 },
+    Callback = function(Value)
+        flySpeed = Value
+    end
 })
 
-PlayerTab:CreateKeybind({
-   Name = "Noclip Keybind",
-   CurrentKeybind = "X",
-   HoldToInteract = false,
-   Flag = "NoclipBind",
-   Callback = function()
-
-       NoclipToggle:Set(not isNoclip)
-   end,
+PlayerTab:Keybind({
+    Title = "Fly Keybind",
+    Value = "F",
+    Callback = function()
+        isFlying = not isFlying
+        FlyToggle:Set(isFlying)
+        setFlightState(isFlying)
+    end
 })
 
-PlayerTab:CreateSection("Teleport Settings")
+PlayerTab:Section({ Title = "Noclip Settings" })
 
-PlayerTab:CreateToggle({
-   Name = "Enable Press Teleport",
-   CurrentValue = false,
-   Flag = "MouseTpToggle",
-   Callback = function(Value)
-       clickTpEnabled = Value
-   end,
+local NoclipToggle = PlayerTab:Toggle({
+    Title = "Noclip",
+    Desc = "Хождение сквозь стены",
+    Value = false,
+    Callback = function(Value)
+        if isNoclip ~= Value then setNoclipState(Value) end
+    end
 })
 
-PlayerTab:CreateKeybind({
-   Name = "Teleport Keybind",
-   CurrentKeybind = "E",
-   HoldToInteract = false,
-   Flag = "MouseTpKey",
-   Callback = function(Keybind)
+PlayerTab:Keybind({
+    Title = "Noclip Keybind",
+    Value = "X",
+    Callback = function()
+        isNoclip = not isNoclip
+        NoclipToggle:Set(isNoclip)
+        setNoclipState(isNoclip)
+    end
+})
 
-       if clickTpEnabled then
+PlayerTab:Section({ Title = "Teleport Settings" })
+
+PlayerTab:Toggle({
+    Title = "Enable Press Teleport",
+    Desc = "Телепорт по курсору мыши",
+    Value = false,
+    Callback = function(Value)
+        clickTpEnabled = Value
+    end
+})
+
+PlayerTab:Keybind({
+    Title = "Teleport Keybind",
+    Desc = "Кнопка телепорта",
+    Value = "E",
+    Callback = function()
+        if clickTpEnabled then
            local character = LocalPlayer.Character
            local humanoidRootPart = character and character:FindFirstChild("HumanoidRootPart")
            local humanoid = character and character:FindFirstChildOfClass("Humanoid")
-           
            if humanoidRootPart and Mouse.Hit then
-
                if humanoid and humanoid.Sit then
                    humanoid.Sit = false
                    task.wait(0.1)
                end
-
                humanoidRootPart.CFrame = CFrame.new(Mouse.Hit.Position + Vector3.new(0, 3.5, 0))
            end
        end
-   end,
+    end
+})
+
+local SpinbotSection = PlayerTab:Section({
+    Title = "Spinbot",
+    Desc = "Быстрое вращение вокруг своей оси",
+    Box = true,
+    BoxBorder = true,
+})
+
+SpinbotSection:Toggle({
+    Title = "Enable Spinbot",
+    Value = false,
+    Callback = function(Value)
+        spinbotEnabled = Value
+    end
+})
+
+SpinbotSection:Slider({
+    Title = "Spin Speed",
+    Desc = "Скорость вращения персонажа",
+    Step = 1,
+    Value = { Min = 1, Max = 100, Default = 20 },
+    Callback = function(Value)
+        spinbotSpeed = Value
+    end
 })
 
 --========================================================
--- 2 ЧАСТЬ
+-- ВКЛАДКА 2: VISUALS
 --========================================================
+VisualsTab:Section({ Title = "ESP Settings" })
 
-local VisualsTab = Window:CreateTab("Visuals", "eye")
-
-VisualsTab:CreateSection("ESP")
-
-VisualsTab:CreateToggle({
-   Name = "Enable ESP",
-   CurrentValue = false,
-   Flag = "ESP_Master",
-   Callback = function(Value)
-       Config.ESP_Enabled = Value
-   end,
+VisualsTab:Toggle({
+    Title = "Enable ESP",
+    Desc = "Главный рубильник ВХ",
+    Value = false,
+    Callback = function(Value)
+        Config.ESP_Enabled = Value
+    end
 })
 
-VisualsTab:CreateToggle({
-   Name = "Boxes",
-   CurrentValue = true,
-   Flag = "ESP_Boxes",
-   Callback = function(Value)
-       Config.Boxes_Enabled = Value
-   end,
+VisualsTab:Toggle({
+    Title = "Boxes",
+    Desc = "Показывать квадраты",
+    Value = true,
+    Callback = function(Value)
+        Config.Boxes_Enabled = Value
+    end
 })
 
-VisualsTab:CreateToggle({
-   Name = "Tracers",
-   CurrentValue = false,
-   Flag = "ESP_Tracers",
-   Callback = function(Value)
-       Config.Tracers_Enabled = Value
-   end,
+VisualsTab:Toggle({
+    Title = "Tracers",
+    Desc = "Линии до игроков",
+    Value = false,
+    Callback = function(Value)
+        Config.Tracers_Enabled = Value
+    end
 })
 
-VisualsTab:CreateToggle({
-   Name = "Head Dot",
-   CurrentValue = true,
-   Flag = "ESP_HeadDot",
-   Callback = function(Value)
-       Config.HeadDot_Enabled = Value
-   end,
+VisualsTab:Toggle({
+    Title = "Head Dot",
+    Desc = "Точка на голове",
+    Value = true,
+    Callback = function(Value)
+        Config.HeadDot_Enabled = Value
+    end
 })
 
-VisualsTab:CreateToggle({
-   Name = "Health Bar",
-   CurrentValue = true,
-   Flag = "ESP_Health",
-   Callback = function(Value)
-       Config.HealthBar_Enabled = Value
-   end,
+VisualsTab:Toggle({
+    Title = "Health Bar",
+    Desc = "Полоска здоровья",
+    Value = true,
+    Callback = function(Value)
+        Config.HealthBar_Enabled = Value
+    end
 })
 
-VisualsTab:CreateSection("ESP Customization")
+VisualsTab:Section({ Title = "ESP Customization" })
 
-VisualsTab:CreateDropdown({
-   Name = "Health Bar Position",
-   Options = {"Right", "Left", "Top"},
-   CurrentOption = {"Right"},
-   MultipleOptions = false,
-   Flag = "HP_Pos",
-   Callback = function(Option)
-       Config.HealthBarPosition = Option[1]
-   end,
+VisualsTab:Dropdown({
+    Title = "Health Bar Position",
+    Desc = "Где рисовать полоску ХП",
+    Value = "Right",
+    Values = {"Right", "Left", "Top"},
+    Callback = function(Value)
+        Config.HealthBarPosition = Value
+    end
 })
 
-VisualsTab:CreateColorPicker({
-    Name = "Box Color",
-    Color = Color3.fromRGB(255, 255, 255),
-    Flag = "Box_Color",
+VisualsTab:Colorpicker({
+    Title = "Box Color",
+    Desc = "Цвет ESP боксов",
+    Default = Color3.fromRGB(255, 255, 255),
     Callback = function(Value)
         Config.BoxColor = Value
     end
 })
 
-VisualsTab:CreateColorPicker({
-    Name = "Tracer Color",
-    Color = Color3.fromRGB(255, 255, 255),
-    Flag = "Tracer_Color",
+VisualsTab:Colorpicker({
+    Title = "Tracer Color",
+    Desc = "Цвет линий",
+    Default = Color3.fromRGB(255, 255, 255),
     Callback = function(Value)
         Config.TracerColor = Value
     end
 })
 
-VisualsTab:CreateToggle({
-   Name = "Rainbow Boxes & Heads",
-   CurrentValue = false,
-   Flag = "ESP_RainbowBox",
-   Callback = function(Value)
-       Config.RainbowBoxes = Value
-   end,
+VisualsTab:Toggle({
+    Title = "Rainbow Boxes & Heads",
+    Value = false,
+    Callback = function(Value)
+        Config.RainbowBoxes = Value
+    end
 })
 
-VisualsTab:CreateToggle({
-   Name = "Rainbow Tracers",
-   CurrentValue = false,
-   Flag = "ESP_RainbowTracer",
-   Callback = function(Value)
-       Config.RainbowTracers = Value
-   end,
+VisualsTab:Toggle({
+    Title = "Rainbow Tracers",
+    Value = false,
+    Callback = function(Value)
+        Config.RainbowTracers = Value
+    end
 })
 
-VisualsTab:CreateSection("Overlay")
 
-VisualsTab:CreateSlider({
-   Name = "Camera FOV (Поле зрения)",
-   Range = {30, 120},
-   Increment = 1,
-   Suffix = "°",
-   CurrentValue = 70,
-   Flag = "Cam_FOV_Slider",
-   Callback = function(Value)
-       Config.Camera_FOV = Value
-   end,
-})
+VisualsTab:Section({ Title = "Name tag Settings" })
 
-VisualsTab:CreateToggle({
-   Name = "Performance Overlay",
-   CurrentValue = false,
-   Flag = "PerfToggle",
-   Callback = function(Value)
-       perfGui.Enabled = Value
-   end,
-})
-
-VisualsTab:CreateSection("Name tag Settings")
-
-VisualsTab:CreateInput({
-    Name = "Tag Text",
+VisualsTab:Input({
+    Title = "Tag Text",
+    Desc = "Текст приставки перед ником",
     PlaceholderText = "[GOD]",
-    NumbersOnly = false,
-    RemoveButton = false,
-    Flag = "NameTagText",
+    ClearTextOnFocus = false,
     Callback = function(Text)
         nameTagText = Text
-    end,
+    end
 })
 
-VisualsTab:CreateDropdown({
-    Name = "Tag Color",
-    Options = {"Yellow", "Red", "Green", "Blue", "Pink", "Orange", "Purple", "White", "Cyan"},
-    CurrentOption = {"Yellow"},
-    MultipleOptions = false,
-    Flag = "NameTagColorDrop",
-    Callback = function(Option)
+VisualsTab:Dropdown({
+    Title = "Tag Color",
+    Desc = "Цвет приставки",
+    Value = "Yellow",
+    Values = {"Yellow", "Red", "Green", "Blue", "Pink", "Orange", "Purple", "White", "Cyan"},
+    Callback = function(Value)
         local colorMap = {
             ["Yellow"] = Color3.fromRGB(255, 215, 0),
             ["Red"] = Color3.fromRGB(255, 0, 0),
@@ -1306,160 +1387,158 @@ VisualsTab:CreateDropdown({
             ["White"] = Color3.fromRGB(255, 255, 255),
             ["Cyan"] = Color3.fromRGB(0, 255, 255)
         }
-        nameTagColor = colorMap[Option[1]] or Color3.fromRGB(255, 215, 0)
-    end,
+        nameTagColor = colorMap[Value] or Color3.fromRGB(255, 215, 0)
+    end
 })
 
-VisualsTab:CreateButton({
-    Name = "Apply NameTag",
+VisualsTab:Button({
+    Title = "Apply NameTag",
+    Desc = "Нажми, чтобы применить тэг",
     Callback = function()
         applyNameTag()
+    end
+})
+
+VisualsTab:Section({ Title = "Overlay & Camera" })
+
+local ColumnsGroup = VisualsTab:Group({})
+
+local FreecamSection = ColumnsGroup:Section({
+    Title = "Camera",
+    Box = true,
+    BoxBorder = true,
+})
+
+local FreecamControls = FreecamSection:Group({})
+
+local FreecamToggle = FreecamControls:Toggle({
+    Title = "Freecam",
+    Callback = function(Value)
+        if freecamActive ~= Value then
+            ToggleFreecam(Value)
+        end
     end,
 })
 
-VisualsTab:CreateSection("Camera Controls")
-
-local VisualsToggle = VisualsTab:CreateToggle({
-   Name = "Freecam",
-   CurrentValue = false,
-   Flag = "Freecam_ToggleMaster",
-   Callback = function(Value)
-       ToggleFreecam(Value)
-   end,
+FreecamControls:Keybind({
+    Title = "Keybind",
+    Value = "P",
+    Callback = function()
+        freecamActive = not freecamActive
+        FreecamToggle:Set(freecamActive)
+        ToggleFreecam(freecamActive)
+    end,
 })
 
-VisualsTab:CreateKeybind({
-   Name = "Freecam Keybind",
-   CurrentKeybind = "P",
-   HoldToInteract = false,
-   Flag = "Freecam_KeybindMaster",
-   Callback = function(Keybind)
-       local newState = not freecamActive
-       FreecamToggle:Set(newState)
-   end,
+FreecamSection:Slider({
+    Title = "Camera FOV",
+    Step = 1,
+    Value = { Min = 30, Max = 120, Default = 70 },
+    Callback = function(Value)
+        Config.Camera_FOV = Value
+    end
 })
 
+local OverlaySection = ColumnsGroup:Section({
+    Title = "Overlay",
+    Box = true,
+    BoxBorder = true,
+})
+
+OverlaySection:Toggle({
+    Title = "Enable Overlay",
+    Callback = function(Value)
+        if perfGui then
+            perfGui.Enabled = Value
+        end
+    end,
+})
+
+OverlaySection:Space()
+
+OverlaySection:Slider({
+    Title = "Gamma",
+    Step = 0.1,
+    Value = { Min = -1, Max = 1, Default = 0 },
+    Callback = function(Value)
+        setGamma(Value)
+    end
+})
 
 --========================================================
--- 3 ЧАСТЬ
+-- ВКЛАДКА 3: COMBAT
 --========================================================
+CombatTab:Section({ Title = "Aim Settings" })
 
-local CombatTab = Window:CreateTab("Combat", "crosshair")
-
-CombatTab:CreateSection("Aim Settings")
-
-CombatTab:CreateToggle({
-   Name = "Enable Aimbot",
-   CurrentValue = false,
-   Flag = "Aim_Master",
-   Callback = function(Value)
-       Config.Aimbot_Enabled = Value
-   end,
+CombatTab:Toggle({
+    Title = "Enable Aimbot",
+    Desc = "Включить автонаводку",
+    Value = false,
+    Callback = function(Value)
+        Config.Aimbot_Enabled = Value
+    end
 })
 
-CombatTab:CreateDropdown({
-   Name = "Activation Key (Hold to Aim)",
-   Options = {"RightClick", "LeftClick", "E", "Q", "C", "F", "LeftShift", "LeftAlt"},
-   CurrentOption = {"RightClick"},
-   MultipleOptions = false,
-   Flag = "Aim_Key",
-   Callback = function(Option)
-       Config.AimKey = Option[1]
-   end,
+CombatTab:Dropdown({
+    Title = "Activation Key",
+    Desc = "Кнопка активации Аима",
+    Value = "RightClick",
+    Values = {"RightClick", "LeftClick", "E", "Q", "C", "F", "LeftShift", "LeftAlt"},
+    Callback = function(Value)
+        Config.AimKey = Value
+    end
 })
 
-CombatTab:CreateDropdown({
-   Name = "Aimbot Method",
-   Options = {"Camera", "Mouse"},
-   CurrentOption = {"Mouse"},
-   MultipleOptions = false,
-   Flag = "Aim_Method",
-   Callback = function(Option)
-       Config.AimMethod = Option[1]
-   end,
+CombatTab:Dropdown({
+    Title = "Aimbot Method",
+    Desc = "Метод наводки (Мышь плавнее)",
+    Value = "Mouse",
+    Values = {"Camera", "Mouse"},
+    Callback = function(Value)
+        Config.AimMethod = Value
+    end
 })
 
-CombatTab:CreateDropdown({
-   Name = "Target Part",
-   Options = {"Head", "HumanoidRootPart", "UpperTorso"},
-   CurrentOption = {"Head"},
-   MultipleOptions = false,
-   Flag = "Aim_Part",
-   Callback = function(Option)
-       Config.TargetPart = Option[1]
-   end,
+CombatTab:Dropdown({
+    Title = "Target Part",
+    Desc = "Куда целимся",
+    Value = "Head",
+    Values = {"Head", "HumanoidRootPart", "UpperTorso"},
+    Callback = function(Value)
+        Config.TargetPart = Value
+    end
 })
 
-CombatTab:CreateToggle({
-   Name = "Show FOV Circle",
-   CurrentValue = true,
-   Flag = "Aim_ShowFOV",
-   Callback = function(Value)
-       Config.FOV_Visible = Value
-   end,
+CombatTab:Toggle({
+    Title = "Show FOV Circle",
+    Desc = "Показывать круг радиуса наводки",
+    Value = true,
+    Callback = function(Value)
+        Config.FOV_Visible = Value
+    end
 })
 
-CombatTab:CreateSlider({
-   Name = "FOV Size (Activation Radius)",
-   Range = {10, 600},
-   Increment = 1,
-   Suffix = "px",
-   CurrentValue = 100,
-   Flag = "Aim_FOVSize",
-   Callback = function(Value)
-       Config.FOV_Radius = Value
-   end,
+CombatTab:Slider({
+    Title = "FOV Size",
+    Desc = "Размер круга аимбота",
+    Step = 1,
+    Value = { Min = 10, Max = 600, Default = 100 },
+    Callback = function(Value)
+        Config.FOV_Radius = Value
+    end
 })
 
-CombatTab:CreateColorPicker({
-    Name = "FOV Color",
-    Color = Color3.fromRGB(255, 255, 255),
-    Flag = "Aim_FOVColor",
+CombatTab:Colorpicker({
+    Title = "FOV Color",
+    Desc = "Цвет круга",
+    Default = Color3.fromRGB(255, 255, 255),
     Callback = function(Value)
         Config.FOV_Color = Value
     end
 })
 
-CombatTab:CreateSection("Fling Settings")
+CombatTab:Section({ Title = "Fling Settings" })
 
-CombatTab:CreateToggle({
-   Name = "Touch Fling",
-   CurrentValue = false,
-   Flag = "TouchFlingToggle",
-   Callback = function(Value)
-       flingActive = Value
-       if flingActive then
-           flingThread = coroutine.create(flingLoop)
-           coroutine.resume(flingThread)
-       else
-           flingThread = nil
-       end
-   end,
-})
-
-CombatTab:CreateToggle({
-   Name = "Fling All",
-   CurrentValue = false,
-   Flag = "FlingAllToggle",
-   Callback = function(Value)
-       flingAllActive = Value
-       if flingAllActive then
-           flingAllThread = coroutine.create(flingAllLoop)
-           coroutine.resume(flingAllThread)
-       else
-           flingAllThread = nil
-       end
-   end,
-})
-
-CombatTab:CreateToggle({
-   Name = "Anti-Fling",
-   CurrentValue = false,
-   Flag = "AntiFlingToggle",
-   Callback = function(Value)
-       toggleAntiFling(Value)
-   end,
-})
 local TargetPlayer = nil
 
 local function findTarget(str)
@@ -1476,41 +1555,39 @@ local function findTarget(str)
     return nil
 end
 
-CombatTab:CreateInput({
-   Name = "Target Player Name",
-   PlaceholderText = "Enter your nickname and press Enter...",
-   RemoveTextAfterFocusLost = false,
+CombatTab:Input({
+   Title = "Target Player Name",
+   PlaceholderText = "Введите часть ника и нажмите Enter...",
+   ClearTextOnFocus = false,
    Callback = function(Text)
        TargetPlayer = findTarget(Text)
 
        if not TargetPlayer then
-           Rayfield:Notify({
-               Title = "Error",
-               Content = "Player not found!",
+           WindUI:Notify({
+               Title = "Ошибка",
+               Content = "Игрок не найден!",
                Duration = 3,
-               Image = 4483362458,
            })
            return
        end
 
-       Rayfield:Notify({
-           Title = "Fling System",
-           Content = "Target found: " .. TargetPlayer.DisplayName .. " (@" .. TargetPlayer.Name .. ")",
+       WindUI:Notify({
+           Title = "Цель найдена",
+           Content = "Атакуем: " .. TargetPlayer.DisplayName .. " (@" .. TargetPlayer.Name .. ")",
            Duration = 3,
-           Image = 4483362458,
        })
    end,
 })
 
-CombatTab:CreateButton({
-   Name = "Fling Target",
+CombatTab:Button({
+   Title = "Fling Target",
+   Desc = "Запустить Touch Fling в выбранного игрока",
    Callback = function()
        if not TargetPlayer then
-           Rayfield:Notify({
-               Title = "Error",
-               Content = "First, find a player (press Enter in the search field)!",
+           WindUI:Notify({
+               Title = "Ошибка",
+               Content = "Сначала найдите игрока в поиске выше!",
                Duration = 3,
-               Image = 4483362458,
            })
            return
        end
@@ -1545,7 +1622,6 @@ CombatTab:CreateButton({
                end
            end
 
-
            local startTime = tick()
            while tick() - startTime < 3 and tHrp.Parent and hum.Health > 0 do
                task.wait()
@@ -1576,3 +1652,130 @@ CombatTab:CreateButton({
        end
    end,
 })
+
+CombatTab:Toggle({
+    Title = "Touch Fling",
+    Desc = "Флинг при касании любого игрока",
+    Value = false,
+    Callback = function(Value)
+        flingActive = Value
+        if flingActive then
+            flingThread = coroutine.create(flingLoop)
+            coroutine.resume(flingThread)
+        else
+            flingThread = nil
+        end
+    end
+})
+
+CombatTab:Toggle({
+    Title = "Fling All",
+    Desc = "Случайный флинг всех на сервере",
+    Value = false,
+    Callback = function(Value)
+        flingAllActive = Value
+        if flingAllActive then
+            flingAllThread = coroutine.create(flingAllLoop)
+            coroutine.resume(flingAllThread)
+        else
+            flingAllThread = nil
+        end
+    end
+})
+
+CombatTab:Toggle({
+    Title = "Anti-Fling",
+    Desc = "Защита от флинга других читеров",
+    Value = false,
+    Callback = function(Value)
+        toggleAntiFling(Value)
+    end
+})
+
+CombatTab:Section({ Title = "Hitbox Settings" })
+
+local HitboxSection = CombatTab:Section({
+    Title = "Hitbox ",
+    Desc = "Увеличение хитбоксов игроков (HumanoidRootPart)",
+    Box = true,
+    BoxBorder = true,
+})
+
+HitboxSection:Toggle({
+    Title = "Enable Hitboxes",
+    Value = false,
+    Callback = function(Value)
+        HitboxConfig.Enabled = Value
+        if not Value then
+            ResetHitboxes()
+        end
+    end,
+})
+
+HitboxSection:Slider({
+    Title = "Hitbox Size",
+    Step = 1,
+    Value = { Min = 2, Max = 100, Default = 15 },
+    Callback = function(Value)
+        HitboxConfig.Size = Value
+    end
+})
+
+HitboxSection:Slider({
+    Title = "Transparency",
+    Desc = "0 - Полностью видимый, 1 - Невидимый",
+    Step = 0.1,
+    Value = { Min = 0, Max = 1, Default = 0.7 },
+    Callback = function(Value)
+        HitboxConfig.Transparency = Value
+    end
+})
+
+HitboxSection:Colorpicker({
+    Title = "Hitbox Color",
+    Default = Color3.fromRGB(150, 150, 150), -- Серый
+    Callback = function(Color)
+        HitboxConfig.Color = Color
+    end
+})
+
+--========================================================
+-- ВКЛАДКА 4: НАСТРОЙКИ 
+--========================================================
+SettingsTab:Section({ Title = "Interface Customization" })
+
+SettingsTab:Dropdown({
+    Title = "Select Theme",
+    Desc = "Выбор базовой темы",
+    Value = "Dark",
+    Values = {"Dark", "Light"},
+    Callback = function(Value)
+        WindUI:SetTheme(Value)
+    end
+})
+
+local isGuiVisible = true 
+local UserInputService = game:GetService("UserInputService")
+
+SettingsTab:Keybind({
+    Title = "Toggle UI Keybind",
+    Desc = "Кнопка скрытия/показа меню",
+    Value = "CapsLock",
+    Callback = function()
+        if Window.Toggle then
+            Window:Toggle()
+        else
+            isGuiVisible = not isGuiVisible
+            Window.Enabled = isGuiVisible 
+        end
+    end
+})
+
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if input.KeyCode == Enum.KeyCode.CapsLock then
+        local gui = game.CoreGui:FindFirstChild("WindUI")
+        if gui then
+            gui.Enabled = not gui.Enabled
+        end
+    end
+end)
