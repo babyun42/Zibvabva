@@ -170,7 +170,6 @@ local function createBigButton(title, sub, callback)
     btn.MouseButton1Click:Connect(callback)
 end
 
--- Основная кнопка
 createBigButton("UNIVERSAL SCRIPT", "My Universal Script - The main hub", function()
     pcall(function()
         loadstring(game:HttpGet("https://raw.githubusercontent.com/babyun42/Zibvabva/refs/heads/main/Univeral.lua"))()
