@@ -1093,7 +1093,7 @@ end)
 --========================================================
 -- ИНТЕРФЕЙС 
 --========================================================
-local _version = "1.6.65"
+local _version = "1.6.66"
 local WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/download/" .. _version .. "/main.lua"))() 
 
 local Window = WindUI:CreateWindow({
