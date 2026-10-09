@@ -11,6 +11,7 @@ local Mouse = LocalPlayer:GetMouse()
 local ContextActionService = game:GetService("ContextActionService")
 local StarterGui = game:GetService("StarterGui")
 local Workspace = game:GetService("Workspace")
+local VirtualUser = game:GetService("VirtualUser")
 
 local Config = {
     Camera_FOV = 70,
@@ -20,14 +21,19 @@ local Config = {
     Tracers_Enabled = false,
     HealthBar_Enabled = true,
     HeadDot_Enabled = true,
+    UseDisplayName = false,
     BoxColor = Color3.fromRGB(255, 255, 255),
     TracerColor = Color3.fromRGB(255, 255, 255),
+    NameColor = Color3.fromRGB(255, 255, 255),
+    TargetColor = Color3.fromRGB(255, 0, 0),
+    UseTargetInvert = false,
+    RainbowNames = false,
     RainbowBoxes = false,
     RainbowTracers = false,
     HealthBarPosition = "Right",
-  
+
     Aimbot_Enabled = false,
-    AimMethod = "Mouse", 
+    AimMethod = "Mouse",
     FOV_Visible = true,
     FOV_Radius = 100,
     FOV_Color = Color3.fromRGB(255, 255, 255),
@@ -54,17 +60,17 @@ local function onRenderStep()
     local character = player.Character
     local rootPart = character and character:FindFirstChild("HumanoidRootPart")
     local humanoid = character and character:FindFirstChild("Humanoid")
-    
+
     if not rootPart or not humanoid or not isFlying then return end
-    
+
     bodyGyro.CFrame = camera.CFrame
-    
+
     local moveDirection = Vector3.new(
         (UserInputService:IsKeyDown(Enum.KeyCode.D) and 1 or 0) - (UserInputService:IsKeyDown(Enum.KeyCode.A) and 1 or 0),
         (UserInputService:IsKeyDown(Enum.KeyCode.Space) and 0.6 or 0) - (UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) and 0.6 or 0),
         (UserInputService:IsKeyDown(Enum.KeyCode.S) and 1 or 0) - (UserInputService:IsKeyDown(Enum.KeyCode.W) and 1 or 0)
     )
-    
+
     if moveDirection.Magnitude > 0 then
         bodyVelocity.Velocity = camera.CFrame:VectorToWorldSpace(moveDirection.Unit * flySpeed)
     else
@@ -77,7 +83,7 @@ local function setFlightState(state)
     local character = player.Character
     local rootPart = character and character:FindFirstChild("HumanoidRootPart")
     local humanoid = character and character:FindFirstChild("Humanoid")
-    
+
     if isFlying then
         if rootPart and humanoid then
             bodyVelocity.Parent = rootPart
@@ -111,8 +117,8 @@ local function setNoclipState(state)
                 local char = player.Character
                 if not char then return end
                 for _, part in pairs(char:GetDescendants()) do
-                    if part:IsA("BasePart") then 
-                        part.CanCollide = false 
+                    if part:IsA("BasePart") then
+                        part.CanCollide = false
                     end
                 end
             end)
@@ -125,8 +131,8 @@ local function setNoclipState(state)
         local char = player.Character
         if char then
             for _, part in pairs(char:GetDescendants()) do
-                if part:IsA("BasePart") then 
-                    part.CanCollide = true 
+                if part:IsA("BasePart") then
+                    part.CanCollide = true
                 end
             end
         end
@@ -136,15 +142,17 @@ end
 local currentFOV = workspace.CurrentCamera and workspace.CurrentCamera.FieldOfView or 70
 
 RunService.RenderStepped:Connect(function()
-    if not freecamActive then 
-        workspace.CurrentCamera.FieldOfView = Config.Camera_FOV
+    if not freecamActive and Config.ESP_Enabled ~= nil then
+        if workspace.CurrentCamera then
+            workspace.CurrentCamera.FieldOfView = Config.Camera_FOV
+        end
     end
 end)
 
 player.CharacterAdded:Connect(function(newCharacter)
     if isFlying then setFlightState(false) end
     if isNoclip then setNoclipState(false) end
-    
+
     task.wait(0.5)
     if workspace.CurrentCamera then
         workspace.CurrentCamera.FieldOfView = currentFOV
@@ -187,30 +195,16 @@ pcall(function()
 end)
 perfGui.Parent = parentGui
 
--- Создаем основной контейнер (VStack)
-local mainContainer = Instance.new("Frame")
-mainContainer.Name = "MainContainer"
-mainContainer.Parent = perfGui
-mainContainer.AnchorPoint = Vector2.new(1, 0)
-mainContainer.Position = UDim2.new(1, -22, 0, 30)
-mainContainer.Size = UDim2.new(0, 160, 0, 500) -- Высота с запасом
-mainContainer.BackgroundTransparency = 1
-
-local freecamBtn = Instance.new("TextButton")
-freecamBtn.Text = "Toggle Freecam"
-freecamBtn.Size = UDim2.new(1, 0, 0, 40)
-freecamBtn.Parent = mainContainer -- Он автоматически упадет под PerfOverlay
-freecamBtn.MouseButton1Click:Connect(function()
-    ToggleFreecam(not freecamActive)
-end)
-
--- Теперь твой perfFrame будет внутри этого контейнера
 local perfFrame = Instance.new("Frame")
-perfFrame.Name = "PerfOverlay"
-perfFrame.Size = UDim2.new(1, 0, 0, 100) -- Ширина 100% от контейнера
+perfFrame.Name = "Container"
+perfFrame.AnchorPoint = Vector2.new(1, 0)
+perfFrame.Position = UDim2.new(1, -22, 0, 30)
+perfFrame.Size = UDim2.fromOffset(160, 100)
 perfFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
 perfFrame.BackgroundTransparency = 0.3
-perfFrame.Parent = mainContainer -- СТАВИМ РОДИТЕЛЕМ КОНТЕЙНЕР
+perfFrame.BorderSizePixel = 0
+perfFrame.Active = true
+perfFrame.Parent = perfGui
 
 local corner = Instance.new("UICorner")
 corner.CornerRadius = UDim.new(0, 10)
@@ -229,12 +223,11 @@ padding.PaddingLeft = UDim.new(0, 12)
 padding.PaddingRight = UDim.new(0, 12)
 padding.Parent = perfFrame
 
--- Добавляем UIListLayout для вертикального выравнивания
 local layout = Instance.new("UIListLayout")
-layout.Parent = mainContainer
 layout.FillDirection = Enum.FillDirection.Vertical
 layout.SortOrder = Enum.SortOrder.LayoutOrder
-layout.Padding = UDim.new(0, 10) -- Расстояние между элементами
+layout.Padding = UDim.new(0, 3)
+layout.Parent = perfFrame
 
 local function makeRow(name, color, order)
     local lbl = Instance.new("TextLabel")
@@ -317,7 +310,7 @@ local function colorByFPS(f)
 end
 
 RunService.RenderStepped:Connect(function()
-    if not perfGui.Enabled then return end
+    if not perfGui or not perfGui.Enabled then return end
     frameCount += 1
     local now = tick()
     if now - lastUpdate >= 0.5 then
@@ -335,7 +328,6 @@ RunService.RenderStepped:Connect(function()
         timeLbl.Text = "TIME: " .. formatTime(now - startTime)
     end
 end)
-
 
 local ESPCache = {}
 
@@ -372,10 +364,10 @@ local function createESP(player)
     local headDot = Drawing.new("Circle")
     headDot.Visible = false
     headDot.Thickness = 1
-    headDot.Filled = true
+    headDot.Filled = false
 
-    ESPCache[player] = { 
-        Box = box, Tracer = tracer, NameTag = nameTag, 
+    ESPCache[player] = {
+        Box = box, Tracer = tracer, NameTag = nameTag,
         HealthBarOutline = healthBarOutline, HealthBar = healthBar,
         HeadDot = headDot
     }
@@ -391,36 +383,57 @@ local function removeESP(player)
     end
 end
 
+local function getInvertedColor(color)
+    return Color3.new(1 - color.R, 1 - color.G, 1 - color.B)
+end
+
+local IsLocking = false
+
 RunService.RenderStepped:Connect(function()
     local Camera = workspace.CurrentCamera
     local myCharacter = LocalPlayer.Character
     local myRootPart = myCharacter and myCharacter:FindFirstChild("HumanoidRootPart")
     local rainbowColor = Color3.fromHSV(tick() % 5 / 5, 1, 1)
-    
+
+    local activeTargetPart = (Config.Aimbot_Enabled and IsLocking) and GetTarget() or nil
+    local activeTargetPlayer = activeTargetPart and Players:GetPlayerFromCharacter(activeTargetPart.Parent) or nil
+
     for _, player in ipairs(Players:GetPlayers()) do
         if player ~= LocalPlayer then
             if not ESPCache[player] then createESP(player) end
-            
+
             local visuals = ESPCache[player]
             local targetCharacter = player.Character
             local targetRootPart = targetCharacter and targetCharacter:FindFirstChild("HumanoidRootPart")
             local targetHead = targetCharacter and targetCharacter:FindFirstChild("Head")
             local targetHumanoid = targetCharacter and targetCharacter:FindFirstChildOfClass("Humanoid")
-            
+
             if Config.ESP_Enabled and myRootPart and targetRootPart and targetHumanoid and targetHead then
                 local targetScreenPos, targetOnScreen = Camera:WorldToViewportPoint(targetRootPart.Position)
                 local headScreenPos, headOnScreen = Camera:WorldToViewportPoint(targetHead.Position)
                 local myScreenPos, myOnScreen = Camera:WorldToViewportPoint(myRootPart.Position)
-                
+
                 if targetOnScreen then
                     local distance = (Camera.CFrame.Position - targetRootPart.Position).Magnitude
                     local sizeX = 2000 / distance
                     local sizeY = 3000 / distance
-                    
+
                     local boxX = targetScreenPos.X - (sizeX / 2)
                     local boxY = targetScreenPos.Y - (sizeY / 2)
-                    
-                    local activeBoxColor = Config.RainbowBoxes and rainbowColor or Config.BoxColor
+
+                    local isTargeted = (player == activeTargetPlayer)
+
+                    local baseBoxColor = Config.RainbowBoxes and rainbowColor or Config.BoxColor
+                    local activeBoxColor = baseBoxColor
+                    if isTargeted then
+                        activeBoxColor = Config.UseTargetInvert and getInvertedColor(baseBoxColor) or Config.TargetColor
+                    end
+
+                    local baseNameColor = Config.RainbowNames and rainbowColor or Config.NameColor
+                    local activeNameColor = baseNameColor
+                    if isTargeted then
+                        activeNameColor = Config.UseTargetInvert and getInvertedColor(baseNameColor) or Config.TargetColor
+                    end
 
                     if Config.Boxes_Enabled then
                         visuals.Box.Size = Vector2.new(sizeX, sizeY)
@@ -440,13 +453,14 @@ RunService.RenderStepped:Connect(function()
                         visuals.Tracer.Visible = false
                     end
 
-                    visuals.NameTag.Text = player.Name
+                    visuals.NameTag.Text = Config.UseDisplayName and player.DisplayName or player.Name
                     visuals.NameTag.Position = Vector2.new(targetScreenPos.X, boxY - 20)
+                    visuals.NameTag.Color = activeNameColor
                     visuals.NameTag.Visible = true
 
                     if Config.HeadDot_Enabled and headOnScreen then
                         visuals.HeadDot.Position = Vector2.new(headScreenPos.X, headScreenPos.Y)
-                        visuals.HeadDot.Radius = math.clamp(1000 / distance, 2, 15)
+                        visuals.HeadDot.Radius = math.clamp(1000 / distance, 1, 15)
                         visuals.HeadDot.Color = activeBoxColor
                         visuals.HeadDot.Visible = true
                     else
@@ -475,7 +489,7 @@ RunService.RenderStepped:Connect(function()
                             visuals.HealthBar.Size = Vector2.new(sizeX * hpPercent, 2)
                             visuals.HealthBar.Position = Vector2.new(boxX, boxY - 6)
                         end
-                        
+
                         visuals.HealthBar.Color = hpColor
                         visuals.HealthBarOutline.Visible = true
                         visuals.HealthBar.Visible = true
@@ -632,10 +646,10 @@ local function flingAllLoop()
         for _, target in pairs(Players:GetPlayers()) do
             if target ~= Player then
                 coroutine.wrap(function() pcall(function() SkidFling(target) end) end)()
-                task.wait(0.2) 
+                task.wait(0.2)
             end
         end
-        task.wait(1) 
+        task.wait(1)
     end
 end
 
@@ -663,7 +677,7 @@ end)
 
 local function toggleAntiFling(state)
     antiFlingEnabled = state
-    
+
     if antiFlingEnabled then
         if not antiFlingConnection then
             antiFlingConnection = RunService.Stepped:Connect(function()
@@ -758,23 +772,21 @@ end)
 
 local clickTpEnabled = false
 
-local IsLocking = false
-
 local FOVCircle = Drawing.new("Circle")
 FOVCircle.Visible = true
 FOVCircle.Thickness = 1.5
 FOVCircle.Filled = false
 
-local function GetTarget()
+function GetTarget()
     local Camera = workspace.CurrentCamera
     local CurrentTarget = nil
-    local MaxDist = Config.FOV_Radius 
+    local MaxDist = Config.FOV_Radius
     local Mouse = UserInputService:GetMouseLocation()
 
     for _, p in pairs(Players:GetPlayers()) do
         if p ~= LocalPlayer and p.Character and p.Character:FindFirstChild(Config.TargetPart) then
             if Config.TeamCheck and p.Team == LocalPlayer.Team then continue end
-             
+
             local Part = p.Character[Config.TargetPart]
             local ScreenPos, OnScreen = Camera:WorldToViewportPoint(Part.Position)
 
@@ -792,7 +804,7 @@ end
 
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if gameProcessed then return end
-    
+
     if Config.AimKey == "RightClick" and input.UserInputType == Enum.UserInputType.MouseButton2 then
         IsLocking = true
     elseif Config.AimKey == "LeftClick" and input.UserInputType == Enum.UserInputType.MouseButton1 then
@@ -822,7 +834,7 @@ RunService.RenderStepped:Connect(function()
     else
         FOVCircle.Visible = false
     end
-    
+
     if Config.Aimbot_Enabled and IsLocking then
         local target = GetTarget()
         if target then
@@ -1054,8 +1066,7 @@ local function ResetHitboxes()
         if p ~= LocalPlayer and p.Character then
             local hrp = p.Character:FindFirstChild("HumanoidRootPart")
             if hrp then
-                -- Стандартные параметры HumanoidRootPart в Roblox
-                hrp.Size = Vector3.new(2, 2, 1) 
+                hrp.Size = Vector3.new(2, 2, 1)
                 hrp.Transparency = 1
                 hrp.CanCollide = false
             end
@@ -1076,7 +1087,7 @@ UserInputService.JumpRequest:Connect(function()
 end)
 
 local spinbotEnabled = false
-local spinbotSpeed = 20 
+local spinbotSpeed = 20
 
 RunService.RenderStepped:Connect(function()
     if spinbotEnabled then
@@ -1088,30 +1099,121 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
+local afkConnection = nil
 
+local function toggleAntiAFK(enable)
+    if enable then
+        if not afkConnection then
+            afkConnection = LocalPlayer.Idled:Connect(function()
+                pcall(function()
+                    VirtualUser:CaptureController()
+                    VirtualUser:ClickButton2(Vector2.new(0, 0))
+                end)
+            end)
+        end
+    else
+        if afkConnection then
+            afkConnection:Disconnect()
+            afkConnection = nil
+        end
+    end
+end
 
 --========================================================
--- ИНТЕРФЕЙС 
+-- UI INTERFACE
 --========================================================
+local isUnloaded = false
+local Window = nil
+
+local function unloadScript()
+    if isUnloaded then return end
+    isUnloaded = true
+
+    Config.ESP_Enabled = false
+    Config.Aimbot_Enabled = false
+    HitboxConfig.Enabled = false
+    ResetHitboxes()
+
+    setFlightState(false)
+    setNoclipState(false)
+    spinbotEnabled = false
+    InfiniteJumpEnabled = false
+    clickTpEnabled = false
+    toggleAntiAFK(false)
+    toggleAntiFling(false)
+    flingActive = false
+    flingAllActive = false
+
+    if freecamActive then ToggleFreecam(false) end
+
+    if workspace.CurrentCamera then
+        workspace.CurrentCamera.FieldOfView = 70
+    end
+    setGamma(0)
+
+    for p, _ in pairs(ESPCache) do
+        removeESP(p)
+    end
+
+    if FOVCircle then
+        FOVCircle.Visible = false
+        pcall(function() FOVCircle:Remove() end)
+    end
+
+    if perfGui then
+        perfGui.Enabled = false
+        pcall(function() perfGui:Destroy() end)
+    end
+
+    pcall(function()
+        if LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid") then
+            LocalPlayer.Character.Humanoid.WalkSpeed = 16
+            LocalPlayer.Character.Humanoid.JumpPower = 50
+        end
+    end)
+
+    pcall(function()
+        if Window and Window.Destroy then
+            Window:Destroy()
+        end
+    end)
+end
+
 local _version = "1.6.66"
-local WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/download/" .. _version .. "/main.lua"))() 
+local WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/download/" .. _version .. "/main.lua"))()
 
-local Window = WindUI:CreateWindow({
-    Title = "Zibvabva | 0.4 alpha",
-    Icon = "sparkles", 
+Window = WindUI:CreateWindow({
+    Title = "Zibvabva | 0.5 alpha",
+    Icon = "sparkles",
     Author = "babyun42",
     Folder = "ZibvabvaConfigs",
     Size = UDim2.fromOffset(980, 560),
     Transparent = true,
     Theme = "Dark",
-    KeySystem = false
+    KeySystem = false,
+    OnClose = function()
+        unloadScript()
+    end
 })
+
+task.spawn(function()
+    task.wait(0.5)
+    local gui = parentGui:FindFirstChild("WindUI") or CoreGui:FindFirstChild("WindUI")
+    if gui then
+        gui.Destroying:Connect(unloadScript)
+        gui.AncestryChanged:Connect(function(_, parent)
+            if not parent then
+                unloadScript()
+            end
+        end)
+    end
+end)
 
 WindUI:Notify({
     Title = "Welcome",
     Content = "Thank you for using Zibvabva Hub!",
     Icon = "check",
-    Duration = 3,
+    Duration = 7,
 })
 
 local PlayerTab = Window:Tab({ Title = "Player", Icon = "user" })
@@ -1120,44 +1222,48 @@ local CombatTab = Window:Tab({ Title = "Combat", Icon = "crosshair" })
 local SettingsTab = Window:Tab({ Title = "Settings", Icon = "settings" })
 
 --========================================================
--- ВКЛАДКА 1: PLAYER
+-- TAB 1: PLAYER
 --========================================================
 PlayerTab:Section({ Title = "Main Movement" })
 
 PlayerTab:Slider({
     Title = "WalkSpeed",
-    Desc = "Настрой скорость персонажа",
+    Desc = "Set character walk speed",
     Step = 1,
     Value = { Min = 16, Max = 300, Default = 16 },
     Callback = function(Value)
-        game.Players.LocalPlayer.Character.Humanoid.WalkSpeed = Value
+        if LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid") then
+            LocalPlayer.Character.Humanoid.WalkSpeed = Value
+        end
     end
 })
 
 PlayerTab:Slider({
     Title = "JumpPower",
-    Desc = "Настрой силу прыжка",
+    Desc = "Set character jump power",
     Step = 1,
     Value = { Min = 50, Max = 400, Default = 50 },
     Callback = function(Value)
-        game.Players.LocalPlayer.Character.Humanoid.JumpPower = Value
+        if LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid") then
+            LocalPlayer.Character.Humanoid.JumpPower = Value
+        end
     end
 })
 
 PlayerTab:Toggle({
     Title = "Infinite Jump",
-    Desc = "Позволяет прыгать в воздухе (Бесконечно)",
+    Desc = "Allows infinite mid-air jumps",
     Value = false,
     Callback = function(Value)
         InfiniteJumpEnabled = Value
     end
 })
 
-PlayerTab:Section({ Title = "Flight Settings" })
+PlayerTab:Section({ Title = "Flight" })
 
 local FlyToggle = PlayerTab:Toggle({
     Title = "Fly",
-    Desc = "Включить/выключить полет",
+    Desc = "Toggle flight mode",
     Value = false,
     Callback = function(Value)
         if isFlying ~= Value then setFlightState(Value) end
@@ -1166,7 +1272,7 @@ local FlyToggle = PlayerTab:Toggle({
 
 PlayerTab:Slider({
     Title = "Fly Speed",
-    Desc = "Скорость в режиме полета",
+    Desc = "Flight movement speed",
     Step = 1,
     Value = { Min = 20, Max = 300, Default = 60 },
     Callback = function(Value)
@@ -1184,11 +1290,11 @@ PlayerTab:Keybind({
     end
 })
 
-PlayerTab:Section({ Title = "Noclip Settings" })
+PlayerTab:Section({ Title = "Noclip" })
 
 local NoclipToggle = PlayerTab:Toggle({
     Title = "Noclip",
-    Desc = "Хождение сквозь стены",
+    Desc = "Walk through walls",
     Value = false,
     Callback = function(Value)
         if isNoclip ~= Value then setNoclipState(Value) end
@@ -1205,20 +1311,27 @@ PlayerTab:Keybind({
     end
 })
 
-PlayerTab:Section({ Title = "Teleport Settings" })
+PlayerTab:Section({ Title = "Click Teleport" })
 
-PlayerTab:Toggle({
+local TeleportSection = PlayerTab:Section({
+    Title = "Teleport",
+    Desc = "Teleports to mouse cursor position",
+    Box = true,
+    BoxBorder = true,
+})
+
+TeleportSection:Toggle({
     Title = "Enable Press Teleport",
-    Desc = "Телепорт по курсору мыши",
+    Desc = "Enable click teleporting",
     Value = false,
     Callback = function(Value)
         clickTpEnabled = Value
     end
 })
 
-PlayerTab:Keybind({
+TeleportSection:Keybind({
     Title = "Teleport Keybind",
-    Desc = "Кнопка телепорта",
+    Desc = "Teleport hotkey",
     Value = "E",
     Callback = function()
         if clickTpEnabled then
@@ -1236,9 +1349,11 @@ PlayerTab:Keybind({
     end
 })
 
+PlayerTab:Section({ Title = "Spinbot" })
+
 local SpinbotSection = PlayerTab:Section({
     Title = "Spinbot",
-    Desc = "Быстрое вращение вокруг своей оси",
+    Desc = "Fast rotation around character axis",
     Box = true,
     BoxBorder = true,
 })
@@ -1253,7 +1368,7 @@ SpinbotSection:Toggle({
 
 SpinbotSection:Slider({
     Title = "Spin Speed",
-    Desc = "Скорость вращения персонажа",
+    Desc = "Character spin speed",
     Step = 1,
     Value = { Min = 1, Max = 100, Default = 20 },
     Callback = function(Value)
@@ -1261,61 +1376,95 @@ SpinbotSection:Slider({
     end
 })
 
+PlayerTab:Section({ Title = "Other" })
+
+local AntiAfkToggle = PlayerTab:Toggle({
+    Title = "Enable Anti-AFK",
+    Desc = "Prevents AFK disconnection (Error 260)",
+    Value = true,
+    Callback = function(state)
+        toggleAntiAFK(state)
+    end
+})
+
+toggleAntiAFK(true)
+
 --========================================================
--- ВКЛАДКА 2: VISUALS
+-- TAB 2: VISUALS
 --========================================================
-VisualsTab:Section({ Title = "ESP Settings" })
+VisualsTab:Section({ Title = "ESP" })
 
 VisualsTab:Toggle({
     Title = "Enable ESP",
-    Desc = "Главный рубильник ВХ",
+    Desc = "Master ESP toggle",
     Value = false,
     Callback = function(Value)
         Config.ESP_Enabled = Value
     end
 })
 
-VisualsTab:Toggle({
+local ESPSSection = VisualsTab:Section({
+    Title = "ESP Settings",
+    Desc = "General ESP options",
+    Box = true,
+    BoxBorder = true,
+})
+
+ESPSSection:Toggle({
     Title = "Boxes",
-    Desc = "Показывать квадраты",
+    Desc = "Show box overlays",
     Value = true,
     Callback = function(Value)
         Config.Boxes_Enabled = Value
     end
 })
 
-VisualsTab:Toggle({
+ESPSSection:Toggle({
+    Title = "Use Display Name",
+    Desc = "Display DisplayName instead of Username",
+    Value = false,
+    Callback = function(Value)
+        Config.UseDisplayName = Value
+    end
+})
+
+ESPSSection:Toggle({
     Title = "Tracers",
-    Desc = "Линии до игроков",
+    Desc = "Lines pointing to players",
     Value = false,
     Callback = function(Value)
         Config.Tracers_Enabled = Value
     end
 })
 
-VisualsTab:Toggle({
+ESPSSection:Toggle({
     Title = "Head Dot",
-    Desc = "Точка на голове",
+    Desc = "Dot on player head",
     Value = true,
     Callback = function(Value)
         Config.HeadDot_Enabled = Value
     end
 })
 
-VisualsTab:Toggle({
+ESPSSection:Toggle({
     Title = "Health Bar",
-    Desc = "Полоска здоровья",
+    Desc = "Health bar indicator",
     Value = true,
     Callback = function(Value)
         Config.HealthBar_Enabled = Value
     end
 })
 
-VisualsTab:Section({ Title = "ESP Customization" })
+local ESPCSection = VisualsTab:Section({
+    Title = "ESP Customization",
+    Desc = "Basic ESP customization",
+    Box = true,
+    BoxBorder = true,
+})
 
-VisualsTab:Dropdown({
+ESPCSection:Dropdown({
     Title = "Health Bar Position",
-    Desc = "Где рисовать полоску ХП",
+    Desc = "Where to render the health bar",
     Value = "Right",
     Values = {"Right", "Left", "Top"},
     Callback = function(Value)
@@ -1323,25 +1472,61 @@ VisualsTab:Dropdown({
     end
 })
 
-VisualsTab:Colorpicker({
+ESPCSection:Colorpicker({
+    Title = "Name Color",
+    Desc = "ESP name text color",
+    Default = Color3.fromRGB(255, 255, 255),
+    Callback = function(Value)
+        Config.NameColor = Value
+    end
+})
+
+ESPCSection:Colorpicker({
     Title = "Box Color",
-    Desc = "Цвет ESP боксов",
+    Desc = "ESP box color",
     Default = Color3.fromRGB(255, 255, 255),
     Callback = function(Value)
         Config.BoxColor = Value
     end
 })
 
-VisualsTab:Colorpicker({
+ESPCSection:Colorpicker({
     Title = "Tracer Color",
-    Desc = "Цвет линий",
+    Desc = "Tracer line color",
     Default = Color3.fromRGB(255, 255, 255),
     Callback = function(Value)
         Config.TracerColor = Value
     end
 })
 
-VisualsTab:Toggle({
+ESPCSection:Colorpicker({
+    Title = "Target Color",
+    Desc = "Color for target locked by aimbot",
+    Default = Color3.fromRGB(255, 0, 0),
+    Callback = function(Value)
+        Config.TargetColor = Value
+    end
+})
+
+ESPCSection:Toggle({
+    Title = "Target Invert Color",
+    Desc = "Use inverted contrast color for target",
+    Value = false,
+    Callback = function(Value)
+        Config.UseTargetInvert = Value
+    end
+})
+
+ESPCSection:Toggle({
+    Title = "Rainbow Names",
+    Desc = "Rainbow name color effect",
+    Value = false,
+    Callback = function(Value)
+        Config.RainbowNames = Value
+    end
+})
+
+ESPCSection:Toggle({
     Title = "Rainbow Boxes & Heads",
     Value = false,
     Callback = function(Value)
@@ -1349,7 +1534,7 @@ VisualsTab:Toggle({
     end
 })
 
-VisualsTab:Toggle({
+ESPCSection:Toggle({
     Title = "Rainbow Tracers",
     Value = false,
     Callback = function(Value)
@@ -1357,12 +1542,11 @@ VisualsTab:Toggle({
     end
 })
 
-
-VisualsTab:Section({ Title = "Name tag Settings" })
+VisualsTab:Section({ Title = "Name tag" })
 
 VisualsTab:Input({
     Title = "Tag Text",
-    Desc = "Текст приставки перед ником",
+    Desc = "Prefix text before username",
     PlaceholderText = "[GOD]",
     ClearTextOnFocus = false,
     Callback = function(Text)
@@ -1372,7 +1556,7 @@ VisualsTab:Input({
 
 VisualsTab:Dropdown({
     Title = "Tag Color",
-    Desc = "Цвет приставки",
+    Desc = "Prefix color",
     Value = "Yellow",
     Values = {"Yellow", "Red", "Green", "Blue", "Pink", "Orange", "Purple", "White", "Cyan"},
     Callback = function(Value)
@@ -1393,7 +1577,7 @@ VisualsTab:Dropdown({
 
 VisualsTab:Button({
     Title = "Apply NameTag",
-    Desc = "Нажми, чтобы применить тэг",
+    Desc = "Click to apply nametag",
     Callback = function()
         applyNameTag()
     end
@@ -1423,11 +1607,10 @@ local FreecamToggle = FreecamControls:Toggle({
 FreecamControls:Keybind({
     Title = "Keybind",
     Value = "P",
-    Callback = function()
-        freecamActive = not freecamActive
-        FreecamToggle:Set(freecamActive)
-        ToggleFreecam(freecamActive)
-    end,
+    Callback = function(Keybind)
+       local newState = not freecamActive
+       FreecamToggle:Set(newState)
+   end,
 })
 
 FreecamSection:Slider({
@@ -1448,10 +1631,8 @@ local OverlaySection = ColumnsGroup:Section({
 OverlaySection:Toggle({
     Title = "Enable Overlay",
     Callback = function(Value)
-        if perfGui then
-            perfGui.Enabled = Value
-        end
-    end,
+       perfGui.Enabled = Value
+   end,
 })
 
 OverlaySection:Space()
@@ -1466,22 +1647,29 @@ OverlaySection:Slider({
 })
 
 --========================================================
--- ВКЛАДКА 3: COMBAT
+-- TAB 3: COMBAT
 --========================================================
-CombatTab:Section({ Title = "Aim Settings" })
+CombatTab:Section({ Title = "Aim Bot" })
 
 CombatTab:Toggle({
     Title = "Enable Aimbot",
-    Desc = "Включить автонаводку",
+    Desc = "Enable auto-aiming",
     Value = false,
     Callback = function(Value)
         Config.Aimbot_Enabled = Value
     end
 })
 
-CombatTab:Dropdown({
+local AIMSection = CombatTab:Section({
+    Title = "AIM Bot Settings",
+    Desc = "Aimbot settings and customization",
+    Box = true,
+    BoxBorder = true,
+})
+
+AIMSection:Dropdown({
     Title = "Activation Key",
-    Desc = "Кнопка активации Аима",
+    Desc = "Aimbot trigger key",
     Value = "RightClick",
     Values = {"RightClick", "LeftClick", "E", "Q", "C", "F", "LeftShift", "LeftAlt"},
     Callback = function(Value)
@@ -1489,9 +1677,9 @@ CombatTab:Dropdown({
     end
 })
 
-CombatTab:Dropdown({
+AIMSection:Dropdown({
     Title = "Aimbot Method",
-    Desc = "Метод наводки (Мышь плавнее)",
+    Desc = "Aiming method (Mouse is smoother)",
     Value = "Mouse",
     Values = {"Camera", "Mouse"},
     Callback = function(Value)
@@ -1499,9 +1687,9 @@ CombatTab:Dropdown({
     end
 })
 
-CombatTab:Dropdown({
+AIMSection:Dropdown({
     Title = "Target Part",
-    Desc = "Куда целимся",
+    Desc = "Body part target",
     Value = "Head",
     Values = {"Head", "HumanoidRootPart", "UpperTorso"},
     Callback = function(Value)
@@ -1509,18 +1697,18 @@ CombatTab:Dropdown({
     end
 })
 
-CombatTab:Toggle({
+AIMSection:Toggle({
     Title = "Show FOV Circle",
-    Desc = "Показывать круг радиуса наводки",
+    Desc = "Show FOV radius circle",
     Value = true,
     Callback = function(Value)
         Config.FOV_Visible = Value
     end
 })
 
-CombatTab:Slider({
+AIMSection:Slider({
     Title = "FOV Size",
-    Desc = "Размер круга аимбота",
+    Desc = "Aimbot FOV circle size",
     Step = 1,
     Value = { Min = 10, Max = 600, Default = 100 },
     Callback = function(Value)
@@ -1528,25 +1716,25 @@ CombatTab:Slider({
     end
 })
 
-CombatTab:Colorpicker({
+AIMSection:Colorpicker({
     Title = "FOV Color",
-    Desc = "Цвет круга",
+    Desc = "FOV circle color",
     Default = Color3.fromRGB(255, 255, 255),
     Callback = function(Value)
         Config.FOV_Color = Value
     end
 })
 
-CombatTab:Section({ Title = "Fling Settings" })
+CombatTab:Section({ Title = "Fling" })
 
 local TargetPlayer = nil
 
 local function findTarget(str)
-    if str == "" then return nil end
+    if not str or str == "" then return nil end
     str = string.lower(str)
-    
+
     for _, p in ipairs(game:GetService("Players"):GetPlayers()) do
-        if p ~= game:GetService("Players").LocalPlayer then 
+        if p ~= game:GetService("Players").LocalPlayer then
             if string.find(string.lower(p.Name), str) or string.find(string.lower(p.DisplayName), str) then
                 return p
             end
@@ -1557,23 +1745,25 @@ end
 
 CombatTab:Input({
    Title = "Target Player Name",
-   PlaceholderText = "Введите часть ника и нажмите Enter...",
+   PlaceholderText = "Enter part of username and press Enter...",
    ClearTextOnFocus = false,
    Callback = function(Text)
+       if not Text or string.gsub(Text, "%s+", "") == "" then return end
+
        TargetPlayer = findTarget(Text)
 
        if not TargetPlayer then
            WindUI:Notify({
-               Title = "Ошибка",
-               Content = "Игрок не найден!",
+               Title = "Error",
+               Content = "Player not found!",
                Duration = 3,
            })
            return
        end
 
        WindUI:Notify({
-           Title = "Цель найдена",
-           Content = "Атакуем: " .. TargetPlayer.DisplayName .. " (@" .. TargetPlayer.Name .. ")",
+           Title = "Target Found",
+           Content = "Attacking: " .. TargetPlayer.DisplayName .. " (@" .. TargetPlayer.Name .. ")",
            Duration = 3,
        })
    end,
@@ -1581,12 +1771,12 @@ CombatTab:Input({
 
 CombatTab:Button({
    Title = "Fling Target",
-   Desc = "Запустить Touch Fling в выбранного игрока",
+   Desc = "Launch Touch Fling at target player",
    Callback = function()
        if not TargetPlayer then
            WindUI:Notify({
-               Title = "Ошибка",
-               Content = "Сначала найдите игрока в поиске выше!",
+               Title = "Error",
+               Content = "Search for a player above first!",
                Duration = 3,
            })
            return
@@ -1627,8 +1817,8 @@ CombatTab:Button({
                task.wait()
                if hrp and tHrp then
                    local randomOffset = Vector3.new(
-                       math.random(-2, 2), 
-                       math.random(-1, 1), 
+                       math.random(-2, 2),
+                       math.random(-1, 1),
                        math.random(-2, 2)
                    )
                    hrp.RotVelocity = Vector3.new(0, 50000, 0)
@@ -1655,7 +1845,7 @@ CombatTab:Button({
 
 CombatTab:Toggle({
     Title = "Touch Fling",
-    Desc = "Флинг при касании любого игрока",
+    Desc = "Fling anyone on physical touch",
     Value = false,
     Callback = function(Value)
         flingActive = Value
@@ -1670,7 +1860,7 @@ CombatTab:Toggle({
 
 CombatTab:Toggle({
     Title = "Fling All",
-    Desc = "Случайный флинг всех на сервере",
+    Desc = "Fling every player on server",
     Value = false,
     Callback = function(Value)
         flingAllActive = Value
@@ -1685,24 +1875,18 @@ CombatTab:Toggle({
 
 CombatTab:Toggle({
     Title = "Anti-Fling",
-    Desc = "Защита от флинга других читеров",
+    Desc = "Protection against fling exploiters",
     Value = false,
     Callback = function(Value)
         toggleAntiFling(Value)
     end
 })
 
-CombatTab:Section({ Title = "Hitbox Settings" })
+CombatTab:Section({ Title = "Hitbox" })
 
-local HitboxSection = CombatTab:Section({
-    Title = "Hitbox ",
-    Desc = "Увеличение хитбоксов игроков (HumanoidRootPart)",
-    Box = true,
-    BoxBorder = true,
-})
-
-HitboxSection:Toggle({
+CombatTab:Toggle({
     Title = "Enable Hitboxes",
+    Desc = "Master hitbox expander toggle",
     Value = false,
     Callback = function(Value)
         HitboxConfig.Enabled = Value
@@ -1710,6 +1894,13 @@ HitboxSection:Toggle({
             ResetHitboxes()
         end
     end,
+})
+
+local HitboxSection = CombatTab:Section({
+    Title = "Hitbox Settings",
+    Desc = "Expand player hitboxes (HumanoidRootPart)",
+    Box = true,
+    BoxBorder = true,
 })
 
 HitboxSection:Slider({
@@ -1723,7 +1914,7 @@ HitboxSection:Slider({
 
 HitboxSection:Slider({
     Title = "Transparency",
-    Desc = "0 - Полностью видимый, 1 - Невидимый",
+    Desc = "0 - Fully visible, 1 - Invisible",
     Step = 0.1,
     Value = { Min = 0, Max = 1, Default = 0.7 },
     Callback = function(Value)
@@ -1733,20 +1924,20 @@ HitboxSection:Slider({
 
 HitboxSection:Colorpicker({
     Title = "Hitbox Color",
-    Default = Color3.fromRGB(150, 150, 150), -- Серый
+    Default = Color3.fromRGB(150, 150, 150),
     Callback = function(Color)
         HitboxConfig.Color = Color
     end
 })
 
 --========================================================
--- ВКЛАДКА 4: НАСТРОЙКИ 
+-- TAB 4: SETTINGS
 --========================================================
 SettingsTab:Section({ Title = "Interface Customization" })
 
 SettingsTab:Dropdown({
     Title = "Select Theme",
-    Desc = "Выбор базовой темы",
+    Desc = "Select UI color theme",
     Value = "Dark",
     Values = {"Dark", "Light"},
     Callback = function(Value)
@@ -1754,28 +1945,28 @@ SettingsTab:Dropdown({
     end
 })
 
-local isGuiVisible = true 
-local UserInputService = game:GetService("UserInputService")
+local isGuiVisible = true
 
 SettingsTab:Keybind({
     Title = "Toggle UI Keybind",
-    Desc = "Кнопка скрытия/показа меню",
+    Desc = "Show/Hide interface hotkey",
     Value = "CapsLock",
     Callback = function()
         if Window.Toggle then
             Window:Toggle()
         else
             isGuiVisible = not isGuiVisible
-            Window.Enabled = isGuiVisible 
+            Window.Enabled = isGuiVisible
         end
     end
 })
 
-UserInputService.InputBegan:Connect(function(input, gameProcessed)
-    if input.KeyCode == Enum.KeyCode.CapsLock then
-        local gui = game.CoreGui:FindFirstChild("WindUI")
-        if gui then
-            gui.Enabled = not gui.Enabled
-        end
+SettingsTab:Button({
+    Title = "Unload Script",
+    Desc = "Completely disable script and clean up all functions",
+    Callback = function()
+        unloadScript()
     end
-end)
+})
+
+PlayerTab:Select()
