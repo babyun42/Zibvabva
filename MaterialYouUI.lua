@@ -1293,13 +1293,321 @@ function Container:AddInput(o)
 	return obj
 end
 
+--=====================================================================
+--  ESP PREVIEW — R6 манекен с живым отображением ESP-функций
+--=====================================================================
+function Container:AddESPPreview(o)
+	o = o or {}
+	local win = self.win
+
+	-- Карточка
+	local row = new("Frame", {
+		Size = UDim2.new(1, 0, 0, 300),
+		BackgroundTransparency = 1,
+		LayoutOrder = self:_next(),
+		Parent = self.frame,
+	})
+
+	local stage = new("Frame", {
+		Size = UDim2.fromScale(1, 1),
+		BackgroundColor3 = win.Colors.surfaceContainerLowest,
+		BorderSizePixel = 0,
+		ClipsDescendants = false,
+		Parent = row,
+	})
+	corner(stage, 18)
+	local stageStroke = new("UIStroke", { Thickness = 1, Parent = stage })
+	win:Bind(stageStroke, "Color", "outlineVariant")
+
+	-- Заголовок
+	local hdr = text({
+		Text = "LIVE PREVIEW",
+		TextSize = 11,
+		Font = Enum.Font.GothamBold,
+		Size = UDim2.new(1, -28, 0, 14),
+		Position = UDim2.fromOffset(14, 10),
+		Parent = stage,
+	})
+	win:Bind(hdr, "TextColor3", "primary")
+	local sub = text({
+		Text = "Active ESP features shown on the target",
+		Font = Enum.Font.Gotham, TextSize = 10,
+		Size = UDim2.new(1, -28, 0, 12),
+		Position = UDim2.fromOffset(14, 24),
+		Parent = stage,
+	})
+	win:Bind(sub, "TextColor3", "onSurfaceVariant")
+
+	-- Viewport
+	local viewFrame = new("Frame", {
+		Size = UDim2.new(1, -28, 1, -56),
+		Position = UDim2.fromOffset(14, 44),
+		BackgroundColor3 = win.Colors.surface,
+		BorderSizePixel = 0,
+		ClipsDescendants = true,
+		Parent = stage,
+	})
+	corner(viewFrame, 10)
+	win:Bind(viewFrame, "BackgroundColor3", "surface")
+
+	local vpf = new("ViewportFrame", {
+		Size = UDim2.fromScale(1, 1),
+		BackgroundTransparency = 1,
+		BorderSizePixel = 0,
+		ZIndex = 1,
+		Parent = viewFrame,
+	})
+
+	-- === R6 модель (без скина, просто манекен) ===
+	local model = new("Model", { Name = "Mannequin", Parent = vpf })
+	local bodyColor = win.Colors.onSurfaceVariant
+
+	local function makePart(name, size, pos)
+		local p = new("Part", {
+			Name = name,
+			Size = size,
+			CFrame = CFrame.new(pos),
+			Anchored = true,
+			CanCollide = false,
+			Material = Enum.Material.SmoothPlastic,
+			Color = bodyColor,
+			TopSurface = Enum.SurfaceType.Smooth,
+			BottomSurface = Enum.SurfaceType.Smooth,
+			LeftSurface = Enum.SurfaceType.Smooth,
+			RightSurface = Enum.SurfaceType.Smooth,
+			FrontSurface = Enum.SurfaceType.Smooth,
+			BackSurface = Enum.SurfaceType.Smooth,
+			Parent = model,
+		})
+		return p
+	end
+
+	-- R6 пропорции (стандартный Roblox R6)
+	local head = makePart("Head", Vector3.new(1, 1, 1), Vector3.new(0, 4.5, 0))
+	new("SpecialMesh", {
+		MeshType = Enum.MeshType.Head,
+		Scale = Vector3.new(1.25, 1.25, 1.25),
+		Parent = head,
+	})
+	makePart("Torso",     Vector3.new(2, 2, 1), Vector3.new(0,   3, 0))
+	makePart("Left Arm",  Vector3.new(1, 2, 1), Vector3.new(-1.5, 3, 0))
+	makePart("Right Arm", Vector3.new(1, 2, 1), Vector3.new( 1.5, 3, 0))
+	makePart("Left Leg",  Vector3.new(1, 2, 1), Vector3.new(-0.5, 1, 0))
+	makePart("Right Leg", Vector3.new(1, 2, 1), Vector3.new( 0.5, 1, 0))
+
+	-- Камера
+	local cam = new("Camera", { FieldOfView = 30, Parent = vpf })
+	vpf.CurrentCamera = cam
+	cam.CFrame = CFrame.new(Vector3.new(0, 2.5, 16), Vector3.new(0, 2.5, 0))
+
+	-- === Оверлеи (в координатах viewFrame) ===
+	-- Name tag (над боксом)
+	local nameTag = text({
+		Text = "Player",
+		TextSize = 12,
+		Font = Enum.Font.GothamBold,
+		Size = UDim2.fromOffset(200, 16),
+		AnchorPoint = Vector2.new(0.5, 1),
+		TextStrokeTransparency = 0,
+		TextXAlignment = Enum.TextXAlignment.Center,
+		Visible = false,
+		ZIndex = 5,
+		Parent = viewFrame,
+	})
+
+	-- Box
+	local boxFrame = new("Frame", {
+		BackgroundTransparency = 1,
+		BorderSizePixel = 0,
+		Visible = false,
+		ZIndex = 3,
+		Parent = viewFrame,
+	})
+	corner(boxFrame, 4)
+	local boxStroke = new("UIStroke", { Thickness = 1.5, Color = Color3.new(1, 1, 1), Parent = boxFrame })
+
+	-- Head dot
+	local headDot = new("Frame", {
+		Size = UDim2.fromOffset(8, 8),
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		BackgroundColor3 = Color3.new(1, 1, 1),
+		BorderSizePixel = 0,
+		Visible = false,
+		ZIndex = 4,
+		Parent = viewFrame,
+	})
+	corner(headDot, FULL)
+
+	-- Health bar
+	local hbOutline = new("Frame", {
+		BackgroundColor3 = Color3.new(0, 0, 0),
+		BackgroundTransparency = 0.3,
+		BorderSizePixel = 0,
+		Visible = false,
+		ZIndex = 4,
+		Parent = viewFrame,
+	})
+	corner(hbOutline, 2)
+	local hbFill = new("Frame", {
+		Size = UDim2.new(1, 0, 0.75, 0),
+		Position = UDim2.new(0, 0, 1, 0),
+		AnchorPoint = Vector2.new(0, 1),
+		BackgroundColor3 = Color3.fromRGB(80, 220, 100),
+		BorderSizePixel = 0,
+		Parent = hbOutline,
+	})
+	corner(hbFill, 2)
+
+	-- Tracer
+	local tracer = new("Frame", {
+		Size = UDim2.fromOffset(0, 1.5),
+		AnchorPoint = Vector2.new(0, 0.5),
+		BackgroundColor3 = Color3.new(1, 1, 1),
+		BorderSizePixel = 0,
+		Visible = false,
+		ZIndex = 3,
+		Parent = viewFrame,
+	})
+
+	-- === Проекция мира в 2D viewFrame ===
+	local function updateOverlays()
+		local vpSize = vpf.AbsoluteSize
+		if vpSize.X < 5 or vpSize.Y < 5 then return end
+
+		-- ключевые точки модели (в studs)
+		local headTop  = Vector3.new(0, 5.125, 0)
+		local feet     = Vector3.new(0, 0, 0)
+		local leftArm  = Vector3.new(-2.05, 3, 0)
+		local rightArm = Vector3.new( 2.05, 3, 0)
+		local headCtr  = Vector3.new(0, 4.5, 0)
+
+		local headTopS  = cam:WorldToViewportPoint(headTop)
+		local feetS     = cam:WorldToViewportPoint(feet)
+		local leftArmS  = cam:WorldToViewportPoint(leftArm)
+		local rightArmS = cam:WorldToViewportPoint(rightArm)
+		local headCtrS  = cam:WorldToViewportPoint(headCtr)
+
+		-- бокс вокруг тела
+		local boxLeft = leftArmS.X
+		local boxTop  = headTopS.Y
+		local boxW    = rightArmS.X - leftArmS.X
+		local boxH    = feetS.Y - headTopS.Y
+
+		boxFrame.Position = UDim2.fromOffset(boxLeft, boxTop)
+		boxFrame.Size     = UDim2.fromOffset(boxW, boxH)
+
+		nameTag.Position = UDim2.fromOffset(boxLeft + boxW / 2, boxTop - 4)
+
+		headDot.Position = UDim2.fromOffset(headCtrS.X, headCtrS.Y)
+
+		hbOutline.Position = UDim2.fromOffset(boxLeft + boxW + 4, boxTop)
+		hbOutline.Size     = UDim2.fromOffset(4, boxH)
+
+		-- трейсер: от левого-нижнего угла viewFrame к ногам
+		local fromX, fromY = 0, vpSize.Y
+		local toX   = boxLeft + boxW / 2
+		local toY   = boxTop + boxH
+		local dx, dy = toX - fromX, toY - fromY
+		local dist   = math.sqrt(dx * dx + dy * dy)
+
+		tracer.Position = UDim2.fromOffset(fromX, fromY)
+		tracer.Size     = UDim2.fromOffset(dist, 1.5)
+		tracer.Rotation = math.deg(math.atan2(dy, dx))
+	end
+
+	-- === Состояние ===
+	local state = {
+		enabled  = o.Enabled  == true,
+		boxes    = o.Boxes    ~= false,
+		tracers  = o.Tracers  == true,
+		headDot  = o.HeadDot  ~= false,
+		healthBar= o.HealthBar ~= false,
+		nameTag  = o.NameTag  == true,
+		boxColor    = o.BoxColor    or Color3.fromRGB(255, 255, 255),
+		tracerColor = o.TracerColor or Color3.fromRGB(255, 255, 255),
+		nameColor   = o.NameColor   or Color3.fromRGB(255, 255, 255),
+		healthPct   = o.HealthPercent or 0.75,
+	}
+
+	local function applyState()
+		boxFrame.Visible = state.enabled and state.boxes
+		boxStroke.Color  = state.boxColor
+		headDot.BackgroundColor3 = state.boxColor
+		headDot.Visible  = state.enabled and state.headDot
+
+		tracer.Visible          = state.enabled and state.tracers
+		tracer.BackgroundColor3 = state.tracerColor
+
+		hbOutline.Visible = state.enabled and state.healthBar
+		local hp = math.clamp(state.healthPct, 0, 1)
+		hbFill.Size = UDim2.new(1, 0, hp, 0)
+		hbFill.BackgroundColor3 = Color3.fromRGB(255, 0, 0):Lerp(Color3.fromRGB(0, 255, 0), hp)
+
+		nameTag.Visible     = state.enabled and state.nameTag
+		nameTag.TextColor3  = state.nameColor
+	end
+
+	-- обновление при ресайзе
+	vpf:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
+		task.defer(updateOverlays)
+	end)
+
+	-- первый расчёт после отрисовки
+	task.defer(function()
+		task.wait(0.05)
+		updateOverlays()
+		applyState()
+	end)
+
+	-- тема (перекрашиваем тело и фон)
+	win:OnTheme(function(animate)
+		apply(stage, { BackgroundColor3 = win.Colors.surfaceContainerLowest }, animate)
+		apply(viewFrame, { BackgroundColor3 = win.Colors.surface }, animate)
+		local col = win.Colors.onSurfaceVariant
+		for _, p in ipairs(model:GetChildren()) do
+			if p:IsA("BasePart") then
+				if animate then
+					tween(p, .3, { Color = col })
+				else
+					p.Color = col
+				end
+			end
+		end
+	end)
+
+	-- === API ===
+	local api = {}
+	function api:SetEnabled(v)      state.enabled   = v; applyState() end
+	function api:SetBoxes(v)        state.boxes     = v; applyState() end
+	function api:SetTracers(v)      state.tracers   = v; applyState() end
+	function api:SetHeadDot(v)      state.headDot   = v; applyState() end
+	function api:SetHealthBar(v)    state.healthBar = v; applyState() end
+	function api:SetNameTag(v)      state.nameTag   = v; applyState() end
+	function api:SetBoxColor(c)     state.boxColor    = c; applyState() end
+	function api:SetTracerColor(c)  state.tracerColor = c; applyState() end
+	function api:SetNameColor(c)    state.nameColor   = c; applyState() end
+	function api:SetHealthPercent(p) state.healthPct = p; applyState() end
+	function api:Refresh() updateOverlays(); applyState() end
+	function api:SetBodyColor(c)
+		for _, p in ipairs(model:GetChildren()) do
+			if p:IsA("BasePart") then p.Color = c end
+		end
+	end
+	function api:SetNameText(t) nameTag.Text = t end
+
+	return api
+end
+
 function Container:AddFolder(o)
 	local win = self.win
-	local card = new("CanvasGroup", {
+
+	-- FIX: Frame вместо CanvasGroup + ClipsDescendants (CanvasGroup ломает AutomaticSize)
+	local card = new("Frame", {
 		Name = o.Name or "Folder",
 		BorderSizePixel = 0,
 		AutomaticSize = Enum.AutomaticSize.Y,
 		Size = UDim2.new(1, 0, 0, 0),
+		ClipsDescendants = true,
 		LayoutOrder = self:_next(),
 		Parent = self.frame,
 	})
@@ -1322,12 +1630,8 @@ function Container:AddFolder(o)
 		Parent = header,
 	})
 	win:Bind(layer, "BackgroundColor3", "onSurface")
-	header.MouseEnter:Connect(function()
-		tween(layer, .15, { BackgroundTransparency = .94 })
-	end)
-	header.MouseLeave:Connect(function()
-		tween(layer, .2, { BackgroundTransparency = 1 })
-	end)
+	header.MouseEnter:Connect(function() tween(layer, .15, { BackgroundTransparency = .94 }) end)
+	header.MouseLeave:Connect(function() tween(layer, .2, { BackgroundTransparency = 1 }) end)
 
 	local hasDesc = o.Description ~= nil and o.Description ~= ""
 	local title = text({
@@ -1341,8 +1645,7 @@ function Container:AddFolder(o)
 	if hasDesc then
 		local d = text({
 			Text = o.Description,
-			Font = Enum.Font.Gotham,
-			TextSize = 12.5,
+			Font = Enum.Font.Gotham, TextSize = 12.5,
 			Size = UDim2.new(1, -72, 0, 16),
 			Position = UDim2.fromOffset(16, 34),
 			Parent = header,
@@ -1353,33 +1656,50 @@ function Container:AddFolder(o)
 	chev.AnchorPoint = Vector2.new(.5, .5)
 	chev.Position = UDim2.new(1, -28, .5, 0)
 
+	-- FIX: обёртка с явным размером, чтобы карточка росла детерминированно
+	local contentWrap = new("Frame", {
+		BackgroundTransparency = 1,
+		Size = UDim2.new(1, 0, 0, 0),
+		ClipsDescendants = true,
+		LayoutOrder = 1,
+		Parent = card,
+	})
+
 	local content = new("Frame", {
 		BackgroundTransparency = 1,
 		AutomaticSize = Enum.AutomaticSize.Y,
 		Size = UDim2.new(1, 0, 0, 0),
-		LayoutOrder = 1,
-		Visible = false,
-		Parent = card,
+		Parent = contentWrap,
 	})
 	new("UIListLayout", { Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder, Parent = content })
 	pad(content, 8, 0, 8, 8)
 
 	local c = newContainer(win, content, "surfaceContainerHighest")
 	local open = false
+
 	function c.SetOpen(_, v)
 		open = v and true or false
-		content.Visible = open
 		tween(chev, .22, { Rotation = open and 180 or 0 })
+		task.defer(function()
+			if not contentWrap.Parent then return end
+			local target = open and content.AbsoluteSize.Y or 0
+			tween(contentWrap, .25, { Size = UDim2.new(1, 0, 0, target) }, Quint, Out)
+		end)
 	end
-	header.MouseButton1Down:Connect(function()
-		ripple(card, win.Colors.onSurface)
+
+	win:Connect(content:GetPropertyChangedSignal("AbsoluteSize"), function()
+		if open and contentWrap.Parent then
+			local target = content.AbsoluteSize.Y
+			if math.abs(contentWrap.AbsoluteSize.Y - target) > 1 then
+				contentWrap.Size = UDim2.new(1, 0, 0, target)
+			end
+		end
 	end)
-	header.MouseButton1Click:Connect(function()
-		c:SetOpen(not open)
-	end)
-	if o.Open then
-		c:SetOpen(true)
-	end
+
+	header.MouseButton1Down:Connect(function() ripple(card, win.Colors.onSurface) end)
+	header.MouseButton1Click:Connect(function() c:SetOpen(not open) end)
+
+	if o.Open then c:SetOpen(true) end
 	return c
 end
 
