@@ -715,7 +715,13 @@ end
 function Container:AddSlider(o)
 	local win = self.win
 	local hasDesc = o.Description ~= nil and o.Description ~= ""
-	local row = makeRow(self, o, 90, hasDesc and 92 or 70)
+	local rowH = hasDesc and 96 or 76
+	local row, hit, title = makeRow(self, o, 90, rowH)
+
+	-- FIX: заголовок всегда прижат к верху, чтобы не тянулся через всю строку
+	title.Position = UDim2.fromOffset(16, 12)
+	title.Size = UDim2.new(1, -((90 or 0) + 36), 0, 20)
+
 	local min, max, inc = o.Min or 0, o.Max or 100, o.Increment or 1
 	local value = math.clamp(o.Default or min, min, max)
 
@@ -775,12 +781,8 @@ function Container:AddSlider(o)
 	end
 	setValue(value, false, false)
 
-	function obj.Set(_, v)
-		setValue(v, true, true)
-	end
-	function obj.Get()
-		return value
-	end
+	function obj.Set(_, v) setValue(v, true, true) end
+	function obj.Get() return value end
 
 	local dragging = false
 	local function fromInput(pos)
@@ -1227,6 +1229,67 @@ function Container:AddKeybind(o)
 			task.spawn(o.OnPress)
 		end
 	end)
+	return obj
+end
+
+function Container:AddInput(o)
+	local win = self.win
+	local hasDesc = o.Description ~= nil and o.Description ~= ""
+	local rowH = hasDesc and 96 or 76
+	local row, hit, title = makeRow(self, o, 0, rowH)
+
+	title.Position = UDim2.fromOffset(16, 12)
+	title.Size = UDim2.new(1, -32, 0, 20)
+
+	local box = new("Frame", {
+		Size = UDim2.new(1, -32, 0, 34),
+		Position = UDim2.new(0, 16, 1, -10),
+		AnchorPoint = Vector2.new(0, 1),
+		BackgroundColor3 = win.Colors.surfaceContainerHighest,
+		BorderSizePixel = 0,
+		Parent = row,
+	})
+	corner(box, 12)
+	local boxStroke = new("UIStroke", { Thickness = 1, Parent = box })
+	win:Bind(boxStroke, "Color", "outlineVariant")
+
+	local tb = new("TextBox", {
+		BackgroundTransparency = 1,
+		Position = UDim2.fromOffset(14, 0),
+		Size = UDim2.new(1, -28, 1, 0),
+		Font = Enum.Font.Gotham,
+		Text = o.Default or "",
+		PlaceholderText = o.Placeholder or "Type...",
+		TextSize = 13,
+		ClearTextOnFocus = false,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		Parent = box,
+	})
+	win:Bind(tb, "TextColor3", "onSurface")
+	win:Bind(tb, "PlaceholderColor3", "onSurfaceVariant")
+
+	local focused = false
+	tb.Focused:Connect(function()
+		focused = true
+		tween(boxStroke, .2, { Color = win.Colors.primary })
+	end)
+	tb.FocusLost:Connect(function(enter)
+		focused = false
+		tween(boxStroke, .2, { Color = win.Colors.outlineVariant })
+		if enter and o.Callback then
+			task.spawn(o.Callback, tb.Text)
+		end
+	end)
+
+	win:OnTheme(function(animate)
+		if not focused then
+			apply(boxStroke, { Color = win.Colors.outlineVariant }, animate)
+		end
+	end)
+
+	local obj = { Row = row, TextBox = tb }
+	function obj.Get() return tb.Text end
+	function obj.Set(_, v) tb.Text = v end
 	return obj
 end
 
