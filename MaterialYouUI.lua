@@ -1,0 +1,1867 @@
+--[[
+	Material You UI  —  библиотека GUI для Roblox (Luau)
+
+	Возможности:
+	  • Окно: шапка, вкладки (сайдбар), перетаскивание, свернуть/развернуть/закрыть
+	  • Элементы: Section, Toggle, Button, Slider, Dropdown, Keybind, Folder, Label
+	  • Темы (динамическая смена): Dark, Light, Ocean, Rose, Forest, Sunset, Lavender
+	  • Вступительная анимация: прокрутка фигур Material You -> свап (морф) фигур -> окно
+	  • Все фигуры рисуются из Frame + UICorner (никаких ассетов не нужно)
+
+	Использование: см. example.lua
+]]
+
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local Players = game:GetService("Players")
+
+local UI = {}
+local Window = {}
+Window.__index = Window
+local Container = {}
+Container.__index = Container
+
+local FULL = UDim.new(1, 0)
+local Quint, Quart, Back, Cubic = Enum.EasingStyle.Quint, Enum.EasingStyle.Quart, Enum.EasingStyle.Back, Enum.EasingStyle.Cubic
+local Out, In, InOut = Enum.EasingDirection.Out, Enum.EasingDirection.In, Enum.EasingDirection.InOut
+
+-- ============================================================
+--  Утилиты
+-- ============================================================
+
+local function tween(inst, time, props, style, dir)
+	local tw = TweenService:Create(inst, TweenInfo.new(time, style or Quint, dir or Out), props)
+	tw:Play()
+	return tw
+end
+
+-- применить свойства: с анимацией или сразу
+local function apply(inst, props, animate, time)
+	if animate then
+		tween(inst, time or 0.2, props)
+	else
+		for k, v in pairs(props) do
+			inst[k] = v
+		end
+	end
+end
+
+local function new(class, props)
+	local o = Instance.new(class)
+	local parent
+	for k, v in pairs(props or {}) do
+		if k == "Parent" then
+			parent = v
+		else
+			o[k] = v
+		end
+	end
+	if parent then
+		o.Parent = parent
+	end
+	return o
+end
+
+local function corner(parent, r)
+	return new("UICorner", {
+		CornerRadius = typeof(r) == "UDim" and r or UDim.new(0, r),
+		Parent = parent,
+	})
+end
+
+local function pad(parent, l, t, r, b)
+	return new("UIPadding", {
+		PaddingLeft = UDim.new(0, l or 0),
+		PaddingTop = UDim.new(0, t or 0),
+		PaddingRight = UDim.new(0, r or 0),
+		PaddingBottom = UDim.new(0, b or 0),
+		Parent = parent,
+	})
+end
+
+local function text(props)
+	local d = {
+		BackgroundTransparency = 1,
+		BorderSizePixel = 0,
+		Font = Enum.Font.GothamMedium,
+		TextSize = 14,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextYAlignment = Enum.TextYAlignment.Center,
+		Text = "",
+	}
+	for k, v in pairs(props) do
+		d[k] = v
+	end
+	return new("TextLabel", d)
+end
+
+local function hsv(h, s, v)
+	return Color3.fromHSV(h % 1, math.clamp(s, 0, 1), math.clamp(v, 0, 1))
+end
+
+local function shuffled(list)
+	local t = table.clone(list)
+	for i = #t, 2, -1 do
+		local j = math.random(i)
+		t[i], t[j] = t[j], t[i]
+	end
+	return t
+end
+
+-- ============================================================
+--  Темы (Material You: тональные роли цвета)
+--  Упрощённая генерация палитры из оттенка (hue) исходного цвета.
+-- ============================================================
+
+local function buildScheme(theme)
+	local h = theme.seed:ToHSV()
+	if theme.dark then
+		return {
+			background = hsv(h, .30, .08),
+			surface = hsv(h, .30, .10),
+			surfaceContainer = hsv(h, .28, .14),
+			surfaceContainerHigh = hsv(h, .26, .18),
+			surfaceContainerHighest = hsv(h, .24, .22),
+			primary = hsv(h, .38, .98),
+			onPrimary = hsv(h, .80, .28),
+			primaryContainer = hsv(h, .65, .42),
+			onPrimaryContainer = hsv(h, .12, 1),
+			secondaryContainer = hsv(h, .40, .32),
+			onSecondaryContainer = hsv(h, .14, .96),
+			tertiary = hsv(h + .10, .40, .98),
+			onSurface = hsv(h, .06, .92),
+			onSurfaceVariant = hsv(h, .12, .76),
+			outline = hsv(h, .12, .55),
+			outlineVariant = hsv(h, .16, .30),
+			inverseSurface = hsv(h, .08, .90),
+			inverseOnSurface = hsv(h, .25, .16),
+		}
+	else
+		return {
+			background = hsv(h, .04, .99),
+			surface = hsv(h, .04, .985),
+			surfaceContainer = hsv(h, .07, .955),
+			surfaceContainerHigh = hsv(h, .09, .93),
+			surfaceContainerHighest = hsv(h, .11, .905),
+			primary = hsv(h, .64, .62),
+			onPrimary = hsv(0, 0, 1),
+			primaryContainer = hsv(h, .22, .99),
+			onPrimaryContainer = hsv(h, .92, .30),
+			secondaryContainer = hsv(h, .16, .96),
+			onSecondaryContainer = hsv(h, .75, .30),
+			tertiary = hsv(h + .10, .55, .75),
+			onSurface = hsv(h, .12, .12),
+			onSurfaceVariant = hsv(h, .14, .36),
+			outline = hsv(h, .10, .48),
+			outlineVariant = hsv(h, .12, .78),
+			inverseSurface = hsv(h, .15, .20),
+			inverseOnSurface = hsv(h, .05, .96),
+		}
+	end
+end
+
+UI.Themes = {
+	Dark = { seed = Color3.fromHSV(.52, 1, 1), dark = true },
+	Light = { seed = Color3.fromHSV(.60, 1, 1), dark = false },
+	Ocean = { seed = Color3.fromHSV(.58, 1, 1), dark = true },
+	Rose = { seed = Color3.fromHSV(.93, 1, 1), dark = true },
+	Forest = { seed = Color3.fromHSV(.33, 1, 1), dark = true },
+	Sunset = { seed = Color3.fromHSV(.07, 1, 1), dark = true },
+	Lavender = { seed = Color3.fromHSV(.73, 1, 1), dark = false },
+}
+UI.ThemeOrder = { "Dark", "Light", "Ocean", "Rose", "Forest", "Sunset", "Lavender" }
+
+function UI:AddTheme(name, seedColor, isDark)
+	if not UI.Themes[name] then
+		table.insert(UI.ThemeOrder, name)
+	end
+	UI.Themes[name] = { seed = seedColor, dark = isDark ~= false }
+end
+
+-- ============================================================
+--  Фигуры Material You
+--  Каждая фигура = набор Frame (+UICorner) в нормализованных координатах 0..1.
+--  P(cx, cy, w, h, rotation, corner)  corner: 0..0.5 (0.5 = полностью круглый)
+-- ============================================================
+
+local function P(cx, cy, w, h, rot, c)
+	return { cx, cy, w, h, rot or 0, c or 0 }
+end
+
+-- часть, обрезанная прямоугольником clip (для полукруга, "веера")
+local function Cl(cx, cy, w, h, part)
+	part.clip = { cx, cy, w, h }
+	return part
+end
+
+local function ring(n, ringR, lobeD, centerD, rotOff)
+	local s = { P(.5, .5, centerD, centerD, 0, .5) }
+	for i = 0, n - 1 do
+		local a = math.rad(i * 360 / n + (rotOff or 0))
+		s[#s + 1] = P(.5 + math.cos(a) * ringR, .5 + math.sin(a) * ringR, lobeD, lobeD, 0, .5)
+	end
+	return s
+end
+
+local function petals(n, w, h)
+	local s = {}
+	for i = 0, n - 1 do
+		s[#s + 1] = P(.5, .5, w, h, i * 180 / n, .5)
+	end
+	return s
+end
+
+local function stars(n, size, c)
+	local s = {}
+	for i = 0, n - 1 do
+		s[#s + 1] = P(.5, .5, size, size, i * 90 / n, c)
+	end
+	return s
+end
+
+local function triangleSpec()
+	local s, N = {}, 34
+	local top, bot, hw = .12, .88, .44
+	for i = 0, N - 1 do
+		local yc = top + (bot - top) * (i + .5) / N
+		local w = math.max(2 * hw * (yc - top) / (bot - top), .07)
+		s[#s + 1] = P(.5, yc, w, (bot - top) / N + .012, 0, .5)
+	end
+	return s
+end
+
+local function boomSpec()
+	local s = {}
+	for i = 0, 5 do
+		s[#s + 1] = P(.5, .5, .98, .08, i * 30, .5)
+	end
+	s[#s + 1] = P(.5, .5, .36, .36, 0, .5)
+	return s
+end
+
+local function pixelCircle()
+	local s, n, S = {}, 9, .92
+	for r = 0, n - 1 do
+		local dy = (r + .5) - n / 2
+		local half = math.sqrt(math.max((n / 2) ^ 2 - dy * dy, 0))
+		local cells = math.max(1, 2 * math.floor(half - .5) + 1)
+		local cell = S / n
+		s[#s + 1] = P(.5, (1 - S) / 2 + (r + .5) * cell, cells * cell, cell + .006, 0, 0)
+	end
+	return s
+end
+
+local function pixelTriangle()
+	local s, n, S = {}, 6, .88
+	for c = 0, n - 1 do
+		local cell = S / n
+		s[#s + 1] = P((1 - S) / 2 + (c + .5) * cell, .5, cell + .006, S * (n - c) / n, 0, 0)
+	end
+	return s
+end
+
+local ShapeSpecs, ShapeOrder = {}, {}
+local function reg(name, spec)
+	if not ShapeSpecs[name] then
+		table.insert(ShapeOrder, name)
+	end
+	ShapeSpecs[name] = spec
+end
+
+reg("Circle", { P(.5, .5, .94, .94, 0, .5) })
+reg("Square", { P(.5, .5, .86, .86, 0, .28) })
+reg("Slanted", { P(.5, .5, .8, .86, 10, .22) })
+reg("Arch", { P(.5, .5, .84, .9, 0, .5), P(.5, .74, .84, .42, 0, .14) })
+reg("Semicircle", { Cl(.5, .5, .96, .48, P(.5, .74, .96, .96, 0, .5)) })
+reg("Oval", { P(.5, .5, .9, .64, -35, .5) })
+reg("Pill", { P(.5, .5, .98, .5, -40, .5) })
+reg("Triangle", triangleSpec())
+reg("Fan", { Cl(.5, .5, .88, .88, P(.06, .94, 1.76, 1.76, 0, .5)) })
+reg("Diamond", { P(.5, .5, .62, .62, 45, .16) })
+reg("Gem", stars(2, .72, .3))
+reg("Burst", stars(3, .70, 0))
+reg("Soft burst", stars(3, .70, .16))
+reg("Sunny", stars(4, .64, .24))
+reg("Very sunny", stars(6, .62, .3))
+reg("Boom", boomSpec())
+reg("Soft boom", petals(8, .96, .22))
+reg("Flower", petals(4, .96, .42))
+reg("4-leaf clover", ring(4, .24, .5, .44, 45))
+reg("8-leaf clover", ring(8, .3, .34, .56, 0))
+reg("6-sided cookie", ring(6, .33, .32, .64, 0))
+reg("9-sided cookie", ring(9, .36, .24, .72, 0))
+reg("12-sided cookie", ring(12, .38, .2, .76, 0))
+reg("Puffy", ring(10, .3, .3, .6, 0))
+reg("Heart", { P(.31, .36, .5, .5, 0, .5), P(.69, .36, .5, .5, 0, .5), P(.5, .52, .48, .48, 45, .1) })
+reg("Pixel circle", pixelCircle())
+reg("Pixel triangle", pixelTriangle())
+reg("Bun", { P(.5, .3, .96, .46, 0, .32), P(.5, .72, .96, .46, 0, .32) })
+
+-- Зарегистрировать свою фигуру: UI:RegisterShape("Name", { {cx,cy,w,h,rot,corner}, ... })
+function UI:RegisterShape(name, spec)
+	reg(name, spec)
+end
+
+UI.ShapeNames = ShapeOrder
+
+-- Создать фигуру внутри parent (занимает весь parent). Возвращает объект с :SetColor / :SetTransparency
+local function makeShape(parent, name, color)
+	local spec = ShapeSpecs[name] or ShapeSpecs.Circle
+	local root = new("Frame", {
+		BackgroundTransparency = 1,
+		AnchorPoint = Vector2.new(.5, .5),
+		Position = UDim2.fromScale(.5, .5),
+		Size = UDim2.fromScale(1, 1),
+		Parent = parent,
+	})
+	local parts = {}
+	local function make(container, p)
+		local f = new("Frame", {
+			AnchorPoint = Vector2.new(.5, .5),
+			Position = UDim2.fromScale(p[1], p[2]),
+			Size = UDim2.fromScale(p[3], p[4]),
+			Rotation = p[5] or 0,
+			BackgroundColor3 = color,
+			BorderSizePixel = 0,
+			Parent = container,
+		})
+		if (p[6] or 0) > 0 then
+			corner(f, UDim.new(p[6], 0))
+		end
+		parts[#parts + 1] = f
+	end
+	for _, p in ipairs(spec) do
+		if p.clip then
+			local cl = p.clip
+			local holder = new("Frame", {
+				BackgroundTransparency = 1,
+				ClipsDescendants = true,
+				AnchorPoint = Vector2.new(.5, .5),
+				Position = UDim2.fromScale(cl[1], cl[2]),
+				Size = UDim2.fromScale(cl[3], cl[4]),
+				Parent = root,
+			})
+			make(holder, {
+				(p[1] - (cl[1] - cl[3] / 2)) / cl[3],
+				(p[2] - (cl[2] - cl[4] / 2)) / cl[4],
+				p[3] / cl[3],
+				p[4] / cl[4],
+				p[5],
+				p[6],
+			})
+		else
+			make(root, p)
+		end
+	end
+	local obj = { Root = root, Parts = parts, Name = name }
+	function obj.SetColor(_, c, t)
+		for _, f in ipairs(parts) do
+			if t then
+				tween(f, t, { BackgroundColor3 = c })
+			else
+				f.BackgroundColor3 = c
+			end
+		end
+	end
+	function obj.Destroy()
+		root:Destroy()
+	end
+	return obj
+end
+
+-- Публичный помощник: UI:CreateShape(parentFrame, "Heart", Color3)
+function UI:CreateShape(parent, name, color)
+	return makeShape(parent, name, color or Color3.new(1, 1, 1))
+end
+
+-- ============================================================
+--  Общие мелочи интерфейса
+-- ============================================================
+
+local function ripple(host, color)
+	local m = UserInputService:GetMouseLocation()
+	local abs = host.AbsolutePosition
+	local big = math.max(host.AbsoluteSize.X, host.AbsoluteSize.Y) * 2.4
+	local c = new("Frame", {
+		BackgroundColor3 = color,
+		BackgroundTransparency = .82,
+		BorderSizePixel = 0,
+		AnchorPoint = Vector2.new(.5, .5),
+		Position = UDim2.fromOffset(m.X - abs.X, m.Y - abs.Y),
+		Size = UDim2.fromOffset(0, 0),
+		Parent = host,
+	})
+	corner(c, FULL)
+	tween(c, .55, { Size = UDim2.fromOffset(big, big) })
+	local t = tween(c, .65, { BackgroundTransparency = 1 })
+	t.Completed:Once(function()
+		c:Destroy()
+	end)
+end
+
+local function chevron(win, parent, role)
+	local h = new("Frame", {
+		BackgroundTransparency = 1,
+		AnchorPoint = Vector2.new(.5, .5),
+		Size = UDim2.fromOffset(14, 14),
+		Parent = parent,
+	})
+	for _, d in ipairs({ { -3.5, 45 }, { 3.5, -45 } }) do
+		local bar = new("Frame", {
+			AnchorPoint = Vector2.new(.5, .5),
+			Position = UDim2.new(.5, d[1], .5, 1),
+			Size = UDim2.fromOffset(9, 2),
+			Rotation = d[2],
+			BorderSizePixel = 0,
+			Parent = h,
+		})
+		corner(bar, FULL)
+		win:Bind(bar, "BackgroundColor3", role)
+	end
+	return h
+end
+
+local function keyName(k)
+	return k and k.Name or "None"
+end
+
+-- ============================================================
+--  Window: привязка к теме
+-- ============================================================
+
+function Window:Bind(inst, prop, role)
+	table.insert(self._binds, { inst, prop, role })
+	inst[prop] = self.Colors[role]
+	return inst
+end
+
+function Window:OnTheme(fn)
+	table.insert(self._listeners, fn)
+end
+
+function Window:Connect(signal, fn)
+	local c = signal:Connect(fn)
+	table.insert(self._conns, c)
+	return c
+end
+
+function Window:_refresh(animate)
+	local C = self.Colors
+	local binds = self._binds
+	for i = #binds, 1, -1 do
+		local b = binds[i]
+		if b[1].Parent == nil then
+			table.remove(binds, i)
+		elseif animate then
+			tween(b[1], .3, { [b[2]] = C[b[3]] })
+		else
+			b[1][b[2]] = C[b[3]]
+		end
+	end
+	for _, fn in ipairs(self._listeners) do
+		fn(animate)
+	end
+end
+
+function Window:SetTheme(name)
+	local t = UI.Themes[name]
+	if not t then
+		return
+	end
+	self.ThemeName = name
+	self.Colors = buildScheme(t)
+	self:_refresh(true)
+end
+
+function Window:SetToggleKey(key)
+	self.ToggleKey = key
+end
+
+function Window:_closePopup()
+	if self._popupClose then
+		self._popupClose()
+		self._popupClose = nil
+	end
+end
+
+-- ============================================================
+--  Элементы (Container)
+-- ============================================================
+
+local function newContainer(win, frame, rowRole)
+	return setmetatable({
+		win = win,
+		frame = frame,
+		_order = 0,
+		rowRole = rowRole or "surfaceContainerHigh",
+	}, Container)
+end
+
+function Container:_next()
+	self._order += 1
+	return self._order
+end
+
+-- Карточка-строка: заголовок + описание слева, контрол справа
+local function makeRow(self, o, rightW, height)
+	local win = self.win
+	local row = new("CanvasGroup", {
+		Name = o.Name or "Row",
+		BorderSizePixel = 0,
+		Size = UDim2.new(1, 0, 0, height or 64),
+		LayoutOrder = self:_next(),
+		Parent = self.frame,
+	})
+	corner(row, 16)
+	win:Bind(row, "BackgroundColor3", self.rowRole)
+
+	local layer = new("Frame", {
+		Size = UDim2.fromScale(1, 1),
+		BackgroundTransparency = 1,
+		BorderSizePixel = 0,
+		Parent = row,
+	})
+	win:Bind(layer, "BackgroundColor3", "onSurface")
+
+	local hit = new("TextButton", {
+		Text = "",
+		AutoButtonColor = false,
+		BackgroundTransparency = 1,
+		Size = UDim2.fromScale(1, 1),
+		Parent = row,
+	})
+	hit.MouseEnter:Connect(function()
+		tween(layer, .15, { BackgroundTransparency = .94 })
+	end)
+	hit.MouseLeave:Connect(function()
+		tween(layer, .2, { BackgroundTransparency = 1 })
+	end)
+
+	local hasDesc = o.Description ~= nil and o.Description ~= ""
+	local titleW = UDim2.new(1, -((rightW or 0) + 36), 0, hasDesc and 20 or 22)
+	local title = text({
+		Text = o.Name or "",
+		TextSize = 15,
+		TextTruncate = Enum.TextTruncate.AtEnd,
+		Size = titleW,
+		Position = hasDesc and UDim2.fromOffset(16, 12) or UDim2.new(0, 16, 0, 0),
+		Parent = row,
+	})
+	if not hasDesc then
+		title.Size = UDim2.new(1, -((rightW or 0) + 36), 1, 0)
+	end
+	win:Bind(title, "TextColor3", "onSurface")
+
+	local desc
+	if hasDesc then
+		desc = text({
+			Text = o.Description,
+			Font = Enum.Font.Gotham,
+			TextSize = 12.5,
+			TextTruncate = Enum.TextTruncate.AtEnd,
+			Size = UDim2.new(1, -((rightW or 0) + 36), 0, 16),
+			Position = UDim2.fromOffset(16, 34),
+			Parent = row,
+		})
+		win:Bind(desc, "TextColor3", "onSurfaceVariant")
+	end
+	return row, hit, title, desc
+end
+
+function Container:AddSection(title)
+	local win = self.win
+	local sec = new("Frame", {
+		BackgroundTransparency = 1,
+		AutomaticSize = Enum.AutomaticSize.Y,
+		Size = UDim2.new(1, 0, 0, 0),
+		LayoutOrder = self:_next(),
+		Parent = self.frame,
+	})
+	new("UIListLayout", { Padding = UDim.new(0, 8), SortOrder = Enum.SortOrder.LayoutOrder, Parent = sec })
+	local hdr = text({
+		Text = title or "Section",
+		TextSize = 18,
+		Size = UDim2.new(1, 0, 0, 32),
+		LayoutOrder = 0,
+		Parent = sec,
+	})
+	pad(hdr, 4, 0, 0, 0)
+	win:Bind(hdr, "TextColor3", "onSurface")
+	return newContainer(win, sec, self.rowRole)
+end
+
+function Container:AddLabel(str)
+	local win = self.win
+	local l = text({
+		Text = str or "",
+		Font = Enum.Font.Gotham,
+		TextSize = 13,
+		TextWrapped = true,
+		AutomaticSize = Enum.AutomaticSize.Y,
+		Size = UDim2.new(1, 0, 0, 0),
+		LayoutOrder = self:_next(),
+		Parent = self.frame,
+	})
+	pad(l, 4, 2, 4, 2)
+	win:Bind(l, "TextColor3", "onSurfaceVariant")
+	return {
+		Label = l,
+		SetText = function(_, t)
+			l.Text = t
+		end,
+	}
+end
+
+function Container:AddToggle(o)
+	local win = self.win
+	local row, hit = makeRow(self, o, 52)
+	local state = o.Default == true
+
+	local track = new("Frame", {
+		AnchorPoint = Vector2.new(1, .5),
+		Position = UDim2.new(1, -16, .5, 0),
+		Size = UDim2.fromOffset(52, 32),
+		BorderSizePixel = 0,
+		Parent = row,
+	})
+	corner(track, FULL)
+	local stroke = new("UIStroke", { Thickness = 2, Parent = track })
+	local thumb = new("Frame", {
+		AnchorPoint = Vector2.new(.5, .5),
+		BorderSizePixel = 0,
+		Parent = track,
+	})
+	corner(thumb, FULL)
+
+	local function render(animate)
+		local C = win.Colors
+		apply(track, { BackgroundColor3 = state and C.primary or C.surfaceContainerHighest }, animate)
+		apply(stroke, { Color = state and C.primary or C.outline }, animate)
+		apply(thumb, {
+			BackgroundColor3 = state and C.onPrimary or C.outline,
+			Size = state and UDim2.fromOffset(24, 24) or UDim2.fromOffset(16, 16),
+			Position = UDim2.new(0, state and 36 or 16, .5, 0),
+		}, animate)
+	end
+	render(false)
+	win:OnTheme(render)
+
+	local obj = { Row = row }
+	function obj.Set(_, v, silent)
+		state = v and true or false
+		render(true)
+		if not silent and o.Callback then
+			task.spawn(o.Callback, state)
+		end
+	end
+	function obj.Get()
+		return state
+	end
+
+	hit.MouseButton1Down:Connect(function()
+		ripple(row, win.Colors.onSurface)
+	end)
+	hit.MouseButton1Click:Connect(function()
+		obj:Set(not state)
+	end)
+	if o.Default and o.Callback and o.CallOnInit then
+		task.spawn(o.Callback, state)
+	end
+	return obj
+end
+
+function Container:AddButton(o)
+	local win = self.win
+	local label = o.ButtonText or "Run"
+	local chipW = math.max(64, #label * 9 + 28)
+	local row, hit = makeRow(self, o, chipW)
+
+	local chip = new("Frame", {
+		AnchorPoint = Vector2.new(1, .5),
+		Position = UDim2.new(1, -16, .5, 0),
+		Size = UDim2.fromOffset(chipW, 36),
+		BorderSizePixel = 0,
+		Parent = row,
+	})
+	corner(chip, FULL)
+	win:Bind(chip, "BackgroundColor3", "secondaryContainer")
+	local t = text({
+		Text = label,
+		TextSize = 13,
+		TextXAlignment = Enum.TextXAlignment.Center,
+		Size = UDim2.fromScale(1, 1),
+		Parent = chip,
+	})
+	win:Bind(t, "TextColor3", "onSecondaryContainer")
+
+	hit.MouseButton1Down:Connect(function()
+		ripple(row, win.Colors.onSurface)
+		tween(chip, .1, { Size = UDim2.fromOffset(chipW - 6, 32) })
+	end)
+	local function release()
+		tween(chip, .25, { Size = UDim2.fromOffset(chipW, 36) }, Back)
+	end
+	hit.MouseButton1Up:Connect(release)
+	hit.MouseLeave:Connect(release)
+	hit.MouseButton1Click:Connect(function()
+		if o.Callback then
+			task.spawn(o.Callback)
+		end
+	end)
+	return { Row = row }
+end
+
+function Container:AddSlider(o)
+	local win = self.win
+	local hasDesc = o.Description ~= nil and o.Description ~= ""
+	local row = makeRow(self, o, 90, hasDesc and 92 or 70)
+	local min, max, inc = o.Min or 0, o.Max or 100, o.Increment or 1
+	local value = math.clamp(o.Default or min, min, max)
+
+	local valLbl = text({
+		Font = Enum.Font.GothamBold,
+		TextSize = 14,
+		TextXAlignment = Enum.TextXAlignment.Right,
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.new(1, -16, 0, 12),
+		Size = UDim2.fromOffset(80, 20),
+		Parent = row,
+	})
+	win:Bind(valLbl, "TextColor3", "primary")
+
+	local area = new("TextButton", {
+		Text = "",
+		AutoButtonColor = false,
+		BackgroundTransparency = 1,
+		AnchorPoint = Vector2.new(0, 1),
+		Position = UDim2.new(0, 16, 1, -10),
+		Size = UDim2.new(1, -32, 0, 28),
+		Parent = row,
+	})
+	local rail = new("Frame", {
+		AnchorPoint = Vector2.new(0, .5),
+		Position = UDim2.new(0, 0, .5, 0),
+		Size = UDim2.new(1, 0, 0, 12),
+		BorderSizePixel = 0,
+		Parent = area,
+	})
+	corner(rail, FULL)
+	win:Bind(rail, "BackgroundColor3", "secondaryContainer")
+	local fill = new("Frame", { Size = UDim2.new(0, 0, 1, 0), BorderSizePixel = 0, Parent = rail })
+	corner(fill, FULL)
+	win:Bind(fill, "BackgroundColor3", "primary")
+	local handle = new("Frame", {
+		AnchorPoint = Vector2.new(.5, .5),
+		Size = UDim2.fromOffset(4, 28),
+		BorderSizePixel = 0,
+		Parent = area,
+	})
+	corner(handle, FULL)
+	win:Bind(handle, "BackgroundColor3", "primary")
+
+	local obj = { Row = row }
+	local function setValue(v, fire, animate)
+		v = math.floor((v - min) / inc + .5) * inc + min
+		v = math.clamp(v, min, max)
+		value = v
+		local frac = (max == min) and 0 or (v - min) / (max - min)
+		apply(fill, { Size = UDim2.new(frac, 0, 1, 0) }, animate, .12)
+		apply(handle, { Position = UDim2.new(frac, 0, .5, 0) }, animate, .12)
+		valLbl.Text = tostring(math.floor(v * 1000 + .5) / 1000) .. (o.Suffix or "")
+		if fire and o.Callback then
+			task.spawn(o.Callback, v)
+		end
+	end
+	setValue(value, false, false)
+
+	function obj.Set(_, v)
+		setValue(v, true, true)
+	end
+	function obj.Get()
+		return value
+	end
+
+	local dragging = false
+	local function fromInput(pos)
+		local rel = math.clamp((pos.X - area.AbsolutePosition.X) / math.max(area.AbsoluteSize.X, 1), 0, 1)
+		setValue(min + (max - min) * rel, true, false)
+	end
+	area.InputBegan:Connect(function(i)
+		if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
+			dragging = true
+			tween(handle, .12, { Size = UDim2.fromOffset(4, 34) })
+			fromInput(i.Position)
+		end
+	end)
+	win:Connect(UserInputService.InputChanged, function(i)
+		if dragging and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then
+			fromInput(i.Position)
+		end
+	end)
+	win:Connect(UserInputService.InputEnded, function(i)
+		if dragging and (i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch) then
+			dragging = false
+			tween(handle, .2, { Size = UDim2.fromOffset(4, 28) }, Back)
+		end
+	end)
+	return obj
+end
+
+function Container:AddDropdown(o)
+	local win = self.win
+	local row = makeRow(self, o, 150)
+	local options = o.Options or {}
+	local value = o.Default or options[1]
+
+	local btn = new("TextButton", {
+		Text = "",
+		AutoButtonColor = false,
+		AnchorPoint = Vector2.new(1, .5),
+		Position = UDim2.new(1, -16, .5, 0),
+		Size = UDim2.fromOffset(140, 40),
+		BorderSizePixel = 0,
+		Parent = row,
+	})
+	corner(btn, FULL)
+	win:Bind(btn, "BackgroundColor3", "surfaceContainer")
+	local valueLbl = text({
+		Text = tostring(value or ""),
+		TextSize = 14,
+		Size = UDim2.new(1, -44, 1, 0),
+		Position = UDim2.fromOffset(16, 0),
+		TextTruncate = Enum.TextTruncate.AtEnd,
+		Parent = btn,
+	})
+	win:Bind(valueLbl, "TextColor3", "onSurface")
+	local chev = chevron(win, btn, "onSurfaceVariant")
+	chev.Position = UDim2.new(1, -22, .5, 0)
+
+	local obj = { Row = row }
+	function obj.Set(_, v, silent)
+		value = v
+		valueLbl.Text = tostring(v)
+		if not silent and o.Callback then
+			task.spawn(o.Callback, v)
+		end
+	end
+	function obj.Get()
+		return value
+	end
+	function obj.SetOptions(_, list)
+		options = list
+	end
+
+	local function open()
+		win:_closePopup()
+		local overlay = win.Overlay
+		overlay.Visible = true
+		local catcher = new("TextButton", {
+			Text = "",
+			BackgroundTransparency = 1,
+			Size = UDim2.fromScale(1, 1),
+			ZIndex = 60,
+			Parent = overlay,
+		})
+		local itemH = 44
+		local listH = math.min(#options * itemH + 16, 248)
+		local w = math.max(btn.AbsoluteSize.X, 170)
+		local pos = btn.AbsolutePosition - overlay.AbsolutePosition
+		local x = pos.X + btn.AbsoluteSize.X - w
+		local y = pos.Y + btn.AbsoluteSize.Y + 6
+		if y + listH > overlay.AbsoluteSize.Y - 8 then
+			y = pos.Y - listH - 6
+		end
+		local popup = new("CanvasGroup", {
+			Position = UDim2.fromOffset(x, y + 8),
+			Size = UDim2.fromOffset(w, listH),
+			GroupTransparency = 1,
+			BorderSizePixel = 0,
+			ZIndex = 61,
+			Parent = overlay,
+		})
+		corner(popup, 18)
+		win:Bind(popup, "BackgroundColor3", "surfaceContainerHighest")
+		local st = new("UIStroke", { Thickness = 1, Parent = popup })
+		win:Bind(st, "Color", "outlineVariant")
+		local sc = new("ScrollingFrame", {
+			BackgroundTransparency = 1,
+			BorderSizePixel = 0,
+			Size = UDim2.fromScale(1, 1),
+			CanvasSize = UDim2.new(),
+			AutomaticCanvasSize = Enum.AutomaticSize.Y,
+			ScrollBarThickness = 3,
+			Parent = popup,
+		})
+		pad(sc, 8, 8, 8, 8)
+		new("UIListLayout", { Padding = UDim.new(0, 2), SortOrder = Enum.SortOrder.LayoutOrder, Parent = sc })
+		for i, opt in ipairs(options) do
+			local sel = opt == value
+			local it = new("TextButton", {
+				Text = "",
+				AutoButtonColor = false,
+				BorderSizePixel = 0,
+				BackgroundTransparency = sel and 0 or 1,
+				Size = UDim2.new(1, 0, 0, itemH - 2),
+				LayoutOrder = i,
+				Parent = sc,
+			})
+			corner(it, 12)
+			win:Bind(it, "BackgroundColor3", sel and "secondaryContainer" or "onSurface")
+			local tl = text({
+				Text = tostring(opt),
+				TextSize = 14,
+				Size = UDim2.new(1, -32, 1, 0),
+				Position = UDim2.fromOffset(16, 0),
+				Parent = it,
+			})
+			win:Bind(tl, "TextColor3", sel and "onSecondaryContainer" or "onSurface")
+			if not sel then
+				it.MouseEnter:Connect(function()
+					tween(it, .12, { BackgroundTransparency = .92 })
+				end)
+				it.MouseLeave:Connect(function()
+					tween(it, .15, { BackgroundTransparency = 1 })
+				end)
+			end
+			it.MouseButton1Click:Connect(function()
+				obj:Set(opt)
+				win:_closePopup()
+			end)
+		end
+		tween(popup, .22, { GroupTransparency = 0, Position = UDim2.fromOffset(x, y) })
+		tween(chev, .2, { Rotation = 180 })
+
+		local closed = false
+		local function close()
+			if closed then
+				return
+			end
+			closed = true
+			tween(chev, .2, { Rotation = 0 })
+			local tw = tween(popup, .15, { GroupTransparency = 1 })
+			catcher:Destroy()
+			overlay.Active = false
+			tw.Completed:Once(function()
+				popup:Destroy()
+				if not win._popupClose then
+					overlay.Visible = false
+				end
+			end)
+		end
+		win._popupClose = close
+		catcher.MouseButton1Click:Connect(function()
+			win:_closePopup()
+		end)
+	end
+	btn.MouseButton1Click:Connect(open)
+	return obj
+end
+
+function Container:AddKeybind(o)
+	local win = self.win
+	local row = makeRow(self, o, 120)
+	local key = o.Default
+	local listening = false
+
+	local btn = new("TextButton", {
+		Text = "",
+		AutoButtonColor = false,
+		AnchorPoint = Vector2.new(1, .5),
+		Position = UDim2.new(1, -16, .5, 0),
+		Size = UDim2.fromOffset(104, 40),
+		BorderSizePixel = 0,
+		Parent = row,
+	})
+	corner(btn, FULL)
+	local lbl = text({
+		TextSize = 13,
+		TextXAlignment = Enum.TextXAlignment.Center,
+		Size = UDim2.fromScale(1, 1),
+		Parent = btn,
+	})
+
+	local function render(animate)
+		local C = win.Colors
+		lbl.Text = listening and "..." or keyName(key)
+		apply(btn, { BackgroundColor3 = listening and C.primary or C.surfaceContainer }, animate)
+		apply(lbl, { TextColor3 = listening and C.onPrimary or C.onSurface }, animate)
+	end
+	render(false)
+	win:OnTheme(render)
+
+	local obj = { Row = row }
+	function obj.Get()
+		return key
+	end
+	function obj.Set(_, k, silent)
+		key = k
+		render(true)
+		if not silent and o.Callback then
+			task.spawn(o.Callback, k)
+		end
+	end
+
+	btn.MouseButton1Click:Connect(function()
+		listening = true
+		win._listening = true
+		render(true)
+	end)
+	win:Connect(UserInputService.InputBegan, function(input, gp)
+		if listening then
+			if input.UserInputType ~= Enum.UserInputType.Keyboard then
+				return
+			end
+			listening = false
+			win._listening = false
+			if input.KeyCode == Enum.KeyCode.Escape then
+				render(true)
+			elseif input.KeyCode == Enum.KeyCode.Backspace then
+				obj:Set(nil)
+			else
+				obj:Set(input.KeyCode)
+			end
+		elseif not gp and key and input.KeyCode == key and o.OnPress then
+			task.spawn(o.OnPress)
+		end
+	end)
+	return obj
+end
+
+function Container:AddFolder(o)
+	local win = self.win
+	local card = new("CanvasGroup", {
+		Name = o.Name or "Folder",
+		BorderSizePixel = 0,
+		AutomaticSize = Enum.AutomaticSize.Y,
+		Size = UDim2.new(1, 0, 0, 0),
+		LayoutOrder = self:_next(),
+		Parent = self.frame,
+	})
+	corner(card, 16)
+	win:Bind(card, "BackgroundColor3", self.rowRole)
+	new("UIListLayout", { SortOrder = Enum.SortOrder.LayoutOrder, Parent = card })
+
+	local header = new("TextButton", {
+		Text = "",
+		AutoButtonColor = false,
+		BackgroundTransparency = 1,
+		Size = UDim2.new(1, 0, 0, 64),
+		LayoutOrder = 0,
+		Parent = card,
+	})
+	local layer = new("Frame", {
+		Size = UDim2.fromScale(1, 1),
+		BackgroundTransparency = 1,
+		BorderSizePixel = 0,
+		Parent = header,
+	})
+	win:Bind(layer, "BackgroundColor3", "onSurface")
+	header.MouseEnter:Connect(function()
+		tween(layer, .15, { BackgroundTransparency = .94 })
+	end)
+	header.MouseLeave:Connect(function()
+		tween(layer, .2, { BackgroundTransparency = 1 })
+	end)
+
+	local hasDesc = o.Description ~= nil and o.Description ~= ""
+	local title = text({
+		Text = o.Name or "Folder",
+		TextSize = 15,
+		Size = UDim2.new(1, -72, 0, hasDesc and 20 or 64),
+		Position = UDim2.fromOffset(16, hasDesc and 12 or 0),
+		Parent = header,
+	})
+	win:Bind(title, "TextColor3", "onSurface")
+	if hasDesc then
+		local d = text({
+			Text = o.Description,
+			Font = Enum.Font.Gotham,
+			TextSize = 12.5,
+			Size = UDim2.new(1, -72, 0, 16),
+			Position = UDim2.fromOffset(16, 34),
+			Parent = header,
+		})
+		win:Bind(d, "TextColor3", "onSurfaceVariant")
+	end
+	local chev = chevron(win, header, "onSurfaceVariant")
+	chev.AnchorPoint = Vector2.new(.5, .5)
+	chev.Position = UDim2.new(1, -28, .5, 0)
+
+	local content = new("Frame", {
+		BackgroundTransparency = 1,
+		AutomaticSize = Enum.AutomaticSize.Y,
+		Size = UDim2.new(1, 0, 0, 0),
+		LayoutOrder = 1,
+		Visible = false,
+		Parent = card,
+	})
+	new("UIListLayout", { Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder, Parent = content })
+	pad(content, 8, 0, 8, 8)
+
+	local c = newContainer(win, content, "surfaceContainerHighest")
+	local open = false
+	function c.SetOpen(_, v)
+		open = v and true or false
+		content.Visible = open
+		tween(chev, .22, { Rotation = open and 180 or 0 })
+	end
+	header.MouseButton1Down:Connect(function()
+		ripple(card, win.Colors.onSurface)
+	end)
+	header.MouseButton1Click:Connect(function()
+		c:SetOpen(not open)
+	end)
+	if o.Open then
+		c:SetOpen(true)
+	end
+	return c
+end
+
+-- ============================================================
+--  Window
+-- ============================================================
+
+local function iconButton(win, parent, kind, order, fn)
+	local b = new("TextButton", {
+		Text = "",
+		AutoButtonColor = false,
+		BackgroundTransparency = 1,
+		Size = UDim2.fromOffset(36, 36),
+		LayoutOrder = order,
+		Parent = parent,
+	})
+	corner(b, FULL)
+	win:Bind(b, "BackgroundColor3", "onSurface")
+	b.MouseEnter:Connect(function()
+		tween(b, .15, { BackgroundTransparency = .9 })
+	end)
+	b.MouseLeave:Connect(function()
+		tween(b, .2, { BackgroundTransparency = 1 })
+	end)
+	local function bar(w, rot)
+		local f = new("Frame", {
+			AnchorPoint = Vector2.new(.5, .5),
+			Position = UDim2.fromScale(.5, .5),
+			Size = UDim2.fromOffset(w, 2),
+			Rotation = rot or 0,
+			BorderSizePixel = 0,
+			Parent = b,
+		})
+		corner(f, FULL)
+		win:Bind(f, "BackgroundColor3", "onSurfaceVariant")
+	end
+	if kind == "min" then
+		bar(14)
+	elseif kind == "max" then
+		local sq = new("Frame", {
+			AnchorPoint = Vector2.new(.5, .5),
+			Position = UDim2.fromScale(.5, .5),
+			Size = UDim2.fromOffset(12, 12),
+			BackgroundTransparency = 1,
+			Parent = b,
+		})
+		corner(sq, 3)
+		local st = new("UIStroke", { Thickness = 2, Parent = sq })
+		win:Bind(st, "Color", "onSurfaceVariant")
+	else
+		bar(16, 45)
+		bar(16, -45)
+	end
+	b.MouseButton1Click:Connect(fn)
+	return b
+end
+
+function Window:Toggle(v)
+	if not self._ready or self.Destroyed then
+		return
+	end
+	if v == nil then
+		v = not self.Visible
+	end
+	self.Visible = v
+	self:_closePopup()
+	if v then
+		self.Main.Visible = true
+		self._scale.Scale = .92
+		self.Main.GroupTransparency = 1
+		tween(self._scale, .35, { Scale = 1 }, Back)
+		tween(self.Main, .2, { GroupTransparency = 0 })
+	else
+		tween(self._scale, .2, { Scale = .92 })
+		local t = tween(self.Main, .2, { GroupTransparency = 1 })
+		t.Completed:Once(function()
+			if not self.Visible then
+				self.Main.Visible = false
+			end
+		end)
+	end
+end
+
+function Window:Maximize()
+	self._maximized = not self._maximized
+	local target = self.BaseSize
+	if self._maximized then
+		local cam = workspace.CurrentCamera
+		local vp = cam and cam.ViewportSize or Vector2.new(1280, 720)
+		target = UDim2.fromOffset(vp.X - 80, vp.Y - 80)
+	end
+	tween(self.Main, .45, { Size = target, Position = UDim2.fromScale(.5, .5) })
+end
+
+function Window:Close()
+	if self.Destroyed then
+		return
+	end
+	self:_closePopup()
+	tween(self._scale, .2, { Scale = .9 })
+	local t = tween(self.Main, .2, { GroupTransparency = 1 })
+	t.Completed:Once(function()
+		self:Destroy()
+	end)
+end
+
+function Window:Destroy()
+	if self.Destroyed then
+		return
+	end
+	self.Destroyed = true
+	for _, c in ipairs(self._conns) do
+		pcall(function()
+			c:Disconnect()
+		end)
+	end
+	if self.OnUnload then
+		task.spawn(self.OnUnload)
+	end
+	self.Gui:Destroy()
+end
+
+function Window:Notify(o)
+	if type(o) == "string" then
+		o = { Text = o }
+	end
+	local toast = new("Frame", {
+		AnchorPoint = Vector2.new(.5, 1),
+		Position = UDim2.new(.5, 0, 1, 80),
+		Size = UDim2.fromOffset(340, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		BorderSizePixel = 0,
+		ZIndex = 80,
+		Parent = self.Main,
+	})
+	corner(toast, 16)
+	self:Bind(toast, "BackgroundColor3", "inverseSurface")
+	pad(toast, 16, 12, 16, 12)
+	new("UIListLayout", { Padding = UDim.new(0, 2), SortOrder = Enum.SortOrder.LayoutOrder, Parent = toast })
+	if o.Title then
+		local t = text({
+			Text = o.Title,
+			TextSize = 14,
+			Size = UDim2.new(1, 0, 0, 20),
+			ZIndex = 81,
+			LayoutOrder = 1,
+			Parent = toast,
+		})
+		self:Bind(t, "TextColor3", "inverseOnSurface")
+	end
+	local body = text({
+		Text = o.Text or "",
+		Font = Enum.Font.Gotham,
+		TextSize = 13,
+		TextWrapped = true,
+		AutomaticSize = Enum.AutomaticSize.Y,
+		Size = UDim2.new(1, 0, 0, 0),
+		ZIndex = 81,
+		LayoutOrder = 2,
+		Parent = toast,
+	})
+	self:Bind(body, "TextColor3", "inverseOnSurface")
+	tween(toast, .45, { Position = UDim2.new(.5, 0, 1, -20) }, Back)
+	task.delay(o.Duration or 3, function()
+		if toast.Parent then
+			local tw = tween(toast, .25, { Position = UDim2.new(.5, 0, 1, 80) })
+			tw.Completed:Once(function()
+				toast:Destroy()
+			end)
+		end
+	end)
+end
+
+function Window:_select(tab)
+	if self._current == tab then
+		return
+	end
+	self:_closePopup()
+	local prev = self._current
+	self._current = tab
+	if prev then
+		prev.Page.Visible = false
+		prev.render(true)
+	end
+	tab.Page.Visible = true
+	tab.Page.GroupTransparency = 1
+	tab.Page.Position = UDim2.fromOffset(0, 14)
+	tween(tab.Page, .35, { GroupTransparency = 0, Position = UDim2.fromOffset(0, 0) })
+	tab.render(true)
+end
+
+function Window:AddTab(o)
+	if type(o) == "string" then
+		o = { Name = o }
+	end
+	local win = self
+
+	local btn = new("TextButton", {
+		Text = "",
+		AutoButtonColor = false,
+		BackgroundTransparency = 1,
+		BorderSizePixel = 0,
+		Size = UDim2.new(1, 0, 0, 44),
+		LayoutOrder = #self._tabs + 1,
+		Parent = self.Sidebar,
+	})
+	corner(btn, FULL)
+	win:Bind(btn, "BackgroundColor3", "secondaryContainer")
+
+	local iconHolder = new("Frame", {
+		BackgroundTransparency = 1,
+		Position = UDim2.fromOffset(16, 11),
+		Size = UDim2.fromOffset(22, 22),
+		Parent = btn,
+	})
+	local imgIcon, shapeIcon
+	if o.Icon then
+		imgIcon = new("ImageLabel", {
+			BackgroundTransparency = 1,
+			Image = o.Icon,
+			Size = UDim2.fromScale(1, 1),
+			Parent = iconHolder,
+		})
+	else
+		shapeIcon = makeShape(iconHolder, o.Shape or "Circle", win.Colors.onSurfaceVariant)
+	end
+	local lbl = text({
+		Text = o.Name or "Tab",
+		TextSize = 14,
+		Size = UDim2.new(1, -56, 1, 0),
+		Position = UDim2.fromOffset(50, 0),
+		Parent = btn,
+	})
+
+	local page = new("CanvasGroup", {
+		BackgroundTransparency = 1,
+		Size = UDim2.fromScale(1, 1),
+		Visible = false,
+		Parent = self.Content,
+	})
+	local scroller = new("ScrollingFrame", {
+		BackgroundTransparency = 1,
+		BorderSizePixel = 0,
+		Size = UDim2.fromScale(1, 1),
+		CanvasSize = UDim2.new(),
+		AutomaticCanvasSize = Enum.AutomaticSize.Y,
+		ScrollingDirection = Enum.ScrollingDirection.Y,
+		ScrollBarThickness = 4,
+		Parent = page,
+	})
+	win:Bind(scroller, "ScrollBarImageColor3", "outline")
+	pad(scroller, 20, 20, 20, 20)
+	new("UIListLayout", { Padding = UDim.new(0, 20), SortOrder = Enum.SortOrder.LayoutOrder, Parent = scroller })
+
+	local tab = newContainer(win, scroller, "surfaceContainerHigh")
+	tab.Name = o.Name
+	tab.Page = page
+	tab.Button = btn
+
+	tab.render = function(animate)
+		local C = win.Colors
+		local sel = win._current == tab
+		local col = sel and C.onSecondaryContainer or C.onSurfaceVariant
+		apply(btn, { BackgroundTransparency = sel and 0 or 1 }, animate)
+		apply(lbl, { TextColor3 = col }, animate)
+		if imgIcon then
+			apply(imgIcon, { ImageColor3 = col }, animate)
+		elseif shapeIcon then
+			shapeIcon:SetColor(col, animate and .2 or nil)
+		end
+	end
+	tab.render(false)
+	win:OnTheme(tab.render)
+
+	btn.MouseEnter:Connect(function()
+		if win._current ~= tab then
+			tween(btn, .15, { BackgroundTransparency = .65 })
+		end
+	end)
+	btn.MouseLeave:Connect(function()
+		if win._current ~= tab then
+			tween(btn, .2, { BackgroundTransparency = 1 })
+		end
+	end)
+	btn.MouseButton1Down:Connect(function()
+		ripple(btn, win.Colors.onSecondaryContainer)
+	end)
+	btn.MouseButton1Click:Connect(function()
+		win:_select(tab)
+	end)
+
+	tab.Select = function()
+		win:_select(tab)
+	end
+	table.insert(self._tabs, tab)
+	if not self._current then
+		-- первая вкладка открывается без анимации
+		self._current = tab
+		page.Visible = true
+		page.GroupTransparency = 0
+		tab.render(false)
+	end
+	return tab
+end
+
+-- ============================================================
+--  Вступительная анимация: прокрутка фигур -> свап фигур -> окно
+-- ============================================================
+
+local function playIntro(win, onDone)
+	local gui, C = win.Gui, win.Colors
+	local PITCH, VIEW_W, VIEW_H = 100, 460, 130
+	local names = shuffled(ShapeOrder)
+	local N = #names
+
+	local scrim = new("Frame", {
+		BackgroundColor3 = Color3.new(0, 0, 0),
+		BackgroundTransparency = 1,
+		BorderSizePixel = 0,
+		Size = UDim2.fromScale(1, 1),
+		Parent = gui,
+	})
+	tween(scrim, .4, { BackgroundTransparency = .5 })
+
+	local card = new("CanvasGroup", {
+		AnchorPoint = Vector2.new(.5, .5),
+		Position = UDim2.fromScale(.5, .5),
+		Size = UDim2.fromOffset(VIEW_W, 300),
+		BackgroundColor3 = C.surfaceContainer,
+		GroupTransparency = 1,
+		BorderSizePixel = 0,
+		Parent = gui,
+	})
+	corner(card, 36)
+	local sc = new("UIScale", { Scale = .85, Parent = card })
+	tween(card, .35, { GroupTransparency = 0 })
+	tween(sc, .55, { Scale = 1 }, Back)
+
+	-- 1) лента с фигурами, которая прокручивается
+	local view = new("CanvasGroup", {
+		BackgroundTransparency = 1,
+		Position = UDim2.fromOffset(0, 28),
+		Size = UDim2.fromOffset(VIEW_W, VIEW_H),
+		Parent = card,
+	})
+	local strip = new("Frame", {
+		BackgroundTransparency = 1,
+		Position = UDim2.fromOffset(40, 0),
+		Size = UDim2.fromOffset(N * PITCH, VIEW_H),
+		Parent = view,
+	})
+	local items = {}
+	for i, name in ipairs(names) do
+		local x = (i - 1) * PITCH + PITCH / 2
+		local holder = new("Frame", {
+			BackgroundTransparency = 1,
+			AnchorPoint = Vector2.new(.5, .5),
+			Position = UDim2.fromOffset(x, VIEW_H / 2),
+			Size = UDim2.fromOffset(40, 40),
+			Parent = strip,
+		})
+		items[i] = { Holder = holder, Shape = makeShape(holder, name, C.outline), X = x }
+	end
+
+	local nameLbl = text({
+		Text = "",
+		TextSize = 20,
+		TextXAlignment = Enum.TextXAlignment.Center,
+		Size = UDim2.new(1, 0, 0, 28),
+		Position = UDim2.fromOffset(0, 172),
+		Parent = card,
+	})
+	nameLbl.TextColor3 = C.onSurface
+	local status = text({
+		Text = win.IntroText,
+		Font = Enum.Font.Gotham,
+		TextSize = 13,
+		TextXAlignment = Enum.TextXAlignment.Center,
+		Size = UDim2.new(1, 0, 0, 20),
+		Position = UDim2.fromOffset(0, 204),
+		Parent = card,
+	})
+	status.TextColor3 = C.onSurfaceVariant
+
+	local track = new("Frame", {
+		AnchorPoint = Vector2.new(.5, 0),
+		Position = UDim2.new(.5, 0, 0, 250),
+		Size = UDim2.fromOffset(280, 6),
+		BackgroundColor3 = C.secondaryContainer,
+		BorderSizePixel = 0,
+		Parent = card,
+	})
+	corner(track, FULL)
+	local bar = new("Frame", {
+		Size = UDim2.new(0, 0, 1, 0),
+		BackgroundColor3 = C.primary,
+		BorderSizePixel = 0,
+		Parent = track,
+	})
+	corner(bar, FULL)
+
+	local swaps = win.IntroSwaps
+	local totalTime = 2.6 + (swaps + 1) * .75
+	tween(bar, totalTime, { Size = UDim2.new(1, 0, 1, 0) }, Enum.EasingStyle.Sine, InOut)
+
+	local target = math.random(12, N - 3)
+	local finalX = VIEW_W / 2 - items[target].X
+	local cx0 = VIEW_W / 2
+
+	local conn = RunService.RenderStepped:Connect(function()
+		local sx = strip.Position.X.Offset
+		for _, it in ipairs(items) do
+			local d = math.abs(sx + it.X - cx0)
+			if d < VIEW_W / 2 + PITCH then
+				local f = math.clamp(1 - d / (PITCH * 1.1), 0, 1)
+				f = f * f * (3 - 2 * f)
+				local s = 40 + 60 * f
+				it.Holder.Size = UDim2.fromOffset(s, s)
+				it.Shape:SetColor(C.outline:Lerp(C.primary, f))
+			end
+		end
+	end)
+	table.insert(win._conns, conn)
+
+	task.wait(.35)
+	local scroll = tween(strip, 2.5, { Position = UDim2.fromOffset(finalX, 0) }, Cubic, InOut)
+	scroll.Completed:Wait()
+	conn:Disconnect()
+	if win.Destroyed then
+		return
+	end
+
+	-- 2) центральная фигура и свап (морф) на другие фигуры
+	local stageY = 28 + VIEW_H / 2
+	local function spawnActor(name, color)
+		local h = new("Frame", {
+			BackgroundTransparency = 1,
+			AnchorPoint = Vector2.new(.5, .5),
+			Position = UDim2.fromOffset(VIEW_W / 2, stageY),
+			Size = UDim2.fromOffset(0, 0),
+			ZIndex = 2,
+			Parent = card,
+		})
+		return { Holder = h, Shape = makeShape(h, name, color) }
+	end
+	local function setName(n)
+		nameLbl.Text = n
+		nameLbl.TextTransparency = 1
+		tween(nameLbl, .3, { TextTransparency = 0 })
+	end
+
+	local actor = spawnActor(names[target], C.primary)
+	actor.Holder.Size = UDim2.fromOffset(100, 100)
+	setName(names[target])
+	tween(view, .35, { GroupTransparency = 1 })
+
+	local palette = { C.tertiary, C.primary, C.onPrimaryContainer, C.tertiary }
+	local function morphTo(name, color)
+		local old = actor
+		tween(old.Holder, .32, { Size = UDim2.fromOffset(0, 0), Rotation = 140 }, Back, In)
+		task.delay(.34, function()
+			old.Holder:Destroy()
+		end)
+		local nw = spawnActor(name, color)
+		nw.Holder.Rotation = -140
+		task.delay(.14, function()
+			if nw.Holder.Parent then
+				tween(nw.Holder, .6, { Size = UDim2.fromOffset(100, 100), Rotation = 0 }, Back, Out)
+			end
+		end)
+		actor = nw
+		setName(name)
+	end
+
+	local pool = shuffled(ShapeOrder)
+	for i = 1, swaps do
+		task.wait(.75)
+		if win.Destroyed then
+			return
+		end
+		local nm = pool[i]
+		if nm == actor.Shape.Name then
+			nm = pool[#pool]
+		end
+		morphTo(nm, palette[(i - 1) % #palette + 1])
+	end
+	task.wait(.75)
+	if win.Destroyed then
+		return
+	end
+	morphTo(win.LogoShape, C.primary)
+	status.Text = "Ready"
+	task.wait(.8)
+	if win.Destroyed then
+		return
+	end
+
+	-- 3) финал: карточка исчезает, открывается окно
+	tween(sc, .4, { Scale = 1.08 })
+	tween(card, .35, { GroupTransparency = 1 })
+	local t = tween(scrim, .4, { BackgroundTransparency = 1 })
+	t.Completed:Wait()
+	card:Destroy()
+	scrim:Destroy()
+	onDone()
+end
+
+-- ============================================================
+--  Создание окна
+-- ============================================================
+
+function UI:CreateWindow(o)
+	o = o or {}
+	local win = setmetatable({}, Window)
+	win._binds, win._listeners, win._conns, win._tabs = {}, {}, {}, {}
+	win.Visible = true
+	win.ToggleKey = o.ToggleKey or Enum.KeyCode.RightShift
+	win.OnUnload = o.OnUnload
+	win.LogoShape = o.LogoShape or "Flower"
+	win.IntroText = o.IntroText or "Loading interface..."
+	win.IntroSwaps = o.IntroSwaps or 3
+	win.ThemeName = UI.Themes[o.Theme or "Dark"] and (o.Theme or "Dark") or "Dark"
+	win.Colors = buildScheme(UI.Themes[win.ThemeName])
+	local C = win.Colors
+
+	local gui = new("ScreenGui", {
+		Name = o.Name or "MaterialYouUI",
+		ResetOnSpawn = false,
+		IgnoreGuiInset = true,
+		DisplayOrder = 999,
+		ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
+	})
+	local ok = pcall(function()
+		gui.Parent = (gethui and gethui()) or game:GetService("CoreGui")
+	end)
+	if not ok or not gui.Parent then
+		gui.Parent = Players.LocalPlayer:WaitForChild("PlayerGui")
+	end
+	win.Gui = gui
+
+	local size = o.Size or Vector2.new(880, 560)
+	win.BaseSize = UDim2.fromOffset(size.X, size.Y)
+
+	local main = new("CanvasGroup", {
+		Name = "Main",
+		AnchorPoint = Vector2.new(.5, .5),
+		Position = UDim2.fromScale(.5, .5),
+		Size = win.BaseSize,
+		BorderSizePixel = 0,
+		GroupTransparency = 1,
+		Visible = false,
+		Parent = gui,
+	})
+	corner(main, 28)
+	win:Bind(main, "BackgroundColor3", "surface")
+	local mainStroke = new("UIStroke", { Thickness = 1, Parent = main })
+	win:Bind(mainStroke, "Color", "outlineVariant")
+	win.Main = main
+	win._scale = new("UIScale", { Scale = .92, Parent = main })
+
+	-- шапка
+	local header = new("Frame", {
+		BackgroundTransparency = 1,
+		Active = true,
+		Size = UDim2.new(1, 0, 0, 64),
+		Parent = main,
+	})
+	local left = new("Frame", {
+		BackgroundTransparency = 1,
+		AutomaticSize = Enum.AutomaticSize.X,
+		Size = UDim2.new(0, 0, 1, 0),
+		Parent = header,
+	})
+	new("UIListLayout", {
+		FillDirection = Enum.FillDirection.Horizontal,
+		VerticalAlignment = Enum.VerticalAlignment.Center,
+		Padding = UDim.new(0, 12),
+		SortOrder = Enum.SortOrder.LayoutOrder,
+		Parent = left,
+	})
+	pad(left, 20, 0, 0, 0)
+
+	local logoHolder = new("Frame", {
+		BackgroundTransparency = 1,
+		Size = UDim2.fromOffset(28, 28),
+		LayoutOrder = 1,
+		Parent = left,
+	})
+	local logo = makeShape(logoHolder, win.LogoShape, C.primary)
+	win:OnTheme(function(a)
+		logo:SetColor(win.Colors.primary, a and .25 or nil)
+	end)
+
+	local stack = new("Frame", {
+		BackgroundTransparency = 1,
+		AutomaticSize = Enum.AutomaticSize.XY,
+		Size = UDim2.new(),
+		LayoutOrder = 2,
+		Parent = left,
+	})
+	new("UIListLayout", { SortOrder = Enum.SortOrder.LayoutOrder, Parent = stack })
+	local t1 = text({
+		Text = o.Title or "Material You",
+		Font = Enum.Font.GothamBold,
+		TextSize = 16,
+		AutomaticSize = Enum.AutomaticSize.XY,
+		LayoutOrder = 1,
+		Parent = stack,
+	})
+	win:Bind(t1, "TextColor3", "onSurface")
+	if o.Subtitle then
+		local t2 = text({
+			Text = o.Subtitle,
+			Font = Enum.Font.Gotham,
+			TextSize = 12,
+			AutomaticSize = Enum.AutomaticSize.XY,
+			LayoutOrder = 2,
+			Parent = stack,
+		})
+		win:Bind(t2, "TextColor3", "onSurfaceVariant")
+	end
+	if o.Version then
+		local chip = new("Frame", {
+			AutomaticSize = Enum.AutomaticSize.X,
+			Size = UDim2.fromOffset(0, 26),
+			BorderSizePixel = 0,
+			LayoutOrder = 3,
+			Parent = left,
+		})
+		corner(chip, FULL)
+		win:Bind(chip, "BackgroundColor3", "surfaceContainer")
+		pad(chip, 12, 0, 12, 0)
+		local v = text({
+			Text = o.Version,
+			TextSize = 12,
+			AutomaticSize = Enum.AutomaticSize.X,
+			Size = UDim2.new(0, 0, 1, 0),
+			Parent = chip,
+		})
+		win:Bind(v, "TextColor3", "onSurface")
+	end
+
+	local controls = new("Frame", {
+		BackgroundTransparency = 1,
+		AnchorPoint = Vector2.new(1, .5),
+		Position = UDim2.new(1, -16, .5, 0),
+		AutomaticSize = Enum.AutomaticSize.X,
+		Size = UDim2.fromOffset(0, 36),
+		Parent = header,
+	})
+	new("UIListLayout", {
+		FillDirection = Enum.FillDirection.Horizontal,
+		Padding = UDim.new(0, 4),
+		SortOrder = Enum.SortOrder.LayoutOrder,
+		Parent = controls,
+	})
+	iconButton(win, controls, "min", 1, function()
+		win:Toggle(false)
+	end)
+	iconButton(win, controls, "max", 2, function()
+		win:Maximize()
+	end)
+	iconButton(win, controls, "close", 3, function()
+		win:Close()
+	end)
+
+	-- перетаскивание за шапку
+	local dragging, dragStart, startPos = false, nil, nil
+	header.InputBegan:Connect(function(i)
+		if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
+			dragging, dragStart, startPos = true, i.Position, main.Position
+		end
+	end)
+	win:Connect(UserInputService.InputChanged, function(i)
+		if dragging and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then
+			local d = i.Position - dragStart
+			main.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + d.X, startPos.Y.Scale, startPos.Y.Offset + d.Y)
+		end
+	end)
+	win:Connect(UserInputService.InputEnded, function(i)
+		if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
+			dragging = false
+		end
+	end)
+
+	-- сайдбар и область контента
+	local sidebar = new("Frame", {
+		BackgroundTransparency = 1,
+		Position = UDim2.fromOffset(16, 72),
+		Size = UDim2.new(0, 200, 1, -88),
+		Parent = main,
+	})
+	new("UIListLayout", { Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder, Parent = sidebar })
+	win.Sidebar = sidebar
+
+	local content = new("Frame", {
+		Position = UDim2.fromOffset(232, 72),
+		Size = UDim2.new(1, -248, 1, -88),
+		BorderSizePixel = 0,
+		Parent = main,
+	})
+	corner(content, 24)
+	win:Bind(content, "BackgroundColor3", "surfaceContainer")
+	win.Content = content
+
+	-- слой для выпадающих списков
+	win.Overlay = new("Frame", {
+		BackgroundTransparency = 1,
+		Size = UDim2.fromScale(1, 1),
+		ZIndex = 50,
+		Visible = false,
+		Parent = main,
+	})
+
+	-- горячая клавиша показа/скрытия
+	win:Connect(UserInputService.InputBegan, function(input)
+		if win._listening or not win._ready then
+			return
+		end
+		if input.KeyCode == win.ToggleKey and not UserInputService:GetFocusedTextBox() then
+			win:Toggle()
+		end
+	end)
+
+	local function open()
+		win._ready = true
+		main.Visible = true
+		win.Visible = true
+		tween(win._scale, .45, { Scale = 1 }, Back)
+		tween(main, .25, { GroupTransparency = 0 })
+	end
+
+	if o.Intro == false then
+		open()
+	else
+		task.spawn(function()
+			local okIntro, err = pcall(playIntro, win, open)
+			if not okIntro then
+				warn("[MaterialYouUI] intro error: " .. tostring(err))
+				if not win.Destroyed then
+					open()
+				end
+			end
+		end)
+	end
+
+	return win
+end
+
+return UI
