@@ -1304,15 +1304,13 @@ function Container:AddESPPreview(o)
 		Parent = self.frame,
 	})
 
-	-- Контейнер без серых рамок
 	local stage = new("Frame", {
 		Size = UDim2.fromScale(1, 1),
 		BorderSizePixel = 0,
-		BackgroundTransparency = 1,  -- никакого фона
+		BackgroundTransparency = 1,
 		Parent = row,
 	})
 
-	-- Заголовок (без фона)
 	local hdr = text({
 		Text = "LIVE PREVIEW", TextSize = 11, Font = Enum.Font.GothamBold,
 		Size = UDim2.new(1, 0, 0, 14), Position = UDim2.fromOffset(2, 0),
@@ -1327,7 +1325,6 @@ function Container:AddESPPreview(o)
 	})
 	win:Bind(sub, "TextColor3", "onSurfaceVariant")
 
-	-- Область для человечка — без фона, без рамок, только модель
 	local viewFrame = new("Frame", {
 		Size = UDim2.new(1, 0, 1, -34),
 		Position = UDim2.fromOffset(0, 34),
@@ -1345,7 +1342,6 @@ function Container:AddESPPreview(o)
 		Parent = viewFrame,
 	})
 
-	-- === R6 модель (без скина) ===
 	local model = new("Model", { Name = "Mannequin", Parent = vpf })
 	local bodyColor = win.Colors.onSurfaceVariant
 
@@ -1376,7 +1372,7 @@ function Container:AddESPPreview(o)
 	vpf.CurrentCamera = cam
 	cam.CFrame = CFrame.new(Vector3.new(0, 2.5, 16), Vector3.new(0, 2.5, 0))
 
-	-- === Оверлеи ===
+	-- Overlays
 	local nameTag = text({
 		Text = "Player", TextSize = 12, Font = Enum.Font.GothamBold,
 		Size = UDim2.fromOffset(200, 16),
@@ -1415,30 +1411,33 @@ function Container:AddESPPreview(o)
 	})
 	corner(hbFill, 2)
 
+	-- Tracer: горизонтальная полоска справа-сверху, от правого края превью к правому-верхнему углу бокса
 	local tracer = new("Frame", {
-		Size = UDim2.fromOffset(0, 1.5),
-		AnchorPoint = Vector2.new(0, 0.5),
+		Size = UDim2.fromOffset(0, 2),
+		AnchorPoint = Vector2.new(1, 0.5),
 		BackgroundColor3 = Color3.new(1, 1, 1),
 		BorderSizePixel = 0, Visible = false, ZIndex = 3,
 		Parent = viewFrame,
 	})
 
-	-- === Состояние ===
+	-- State
 	local state = {
 		enabled   = o.Enabled  == true,
 		boxes     = o.Boxes    ~= false,
 		tracers   = o.Tracers  == true,
 		headDot   = o.HeadDot  ~= false,
 		healthBar = o.HealthBar ~= false,
-		nameTag   = o.NameTag  == true,
+		nameTag   = o.NameTag  ~= false,
+		rainbow   = o.Rainbow  == true,
 		boxColor    = o.BoxColor    or Color3.fromRGB(255, 255, 255),
 		tracerColor = o.TracerColor or Color3.fromRGB(255, 255, 255),
 		nameColor   = o.NameColor   or Color3.fromRGB(255, 255, 255),
 		healthPct   = o.HealthPercent or 0.75,
+		healthPos   = o.HealthPosition or "Right",
 		nameText    = o.NameText or "Player",
 	}
 
-	-- === Каждый кадр обновляем оверлеи по фиксированным пропорциям ===
+	-- Render loop — обновление КАЖДЫЙ КАДР (позиции + цвета + rainbow)
 	local conn
 	conn = RunService.RenderStepped:Connect(function()
 		if not viewFrame.Parent then
@@ -1449,63 +1448,79 @@ function Container:AddESPPreview(o)
 		local W, H = sz.X, sz.Y
 		if W < 20 or H < 20 then return end
 
-		-- Модель занимает центр по X, и ~62% по Y (верх ~19%, низ ~81%)
-		local cx      = W * 0.5
+		local cx       = W * 0.5
 		local modelTop = H * 0.16
 		local modelBot = H * 0.86
 		local modelH   = modelBot - modelTop
-		local modelW   = modelH * 0.50      -- R6 широкий + немного запаса
+		local modelW   = modelH * 0.50
 
-		-- Bounding box
 		local boxLeft = cx - modelW / 2 - 3
 		local boxTop  = modelTop - 4
 		local boxW    = modelW + 6
 		local boxH    = (modelBot - modelTop) + 8
 
+		-- Rainbow
+		local rainbowCol = Color3.fromHSV(tick() % 5 / 5, 1, 1)
+		local boxCol    = state.rainbow and rainbowCol or state.boxColor
+		local tracerCol = state.rainbow and rainbowCol or state.tracerColor
+		local nameCol   = state.rainbow and rainbowCol or state.nameColor
+
+		-- Box
 		boxFrame.Position = UDim2.fromOffset(boxLeft, boxTop)
 		boxFrame.Size     = UDim2.fromOffset(boxW, boxH)
+		boxStroke.Color   = boxCol
+		boxFrame.Visible  = state.enabled and state.boxes
 
-		nameTag.Position  = UDim2.fromOffset(boxLeft + boxW / 2, boxTop - 4)
-		nameTag.Text      = state.nameText
-		nameTag.TextColor3 = state.nameColor
+		-- Name tag
+		nameTag.Position   = UDim2.fromOffset(boxLeft + boxW / 2, boxTop - 4)
+		nameTag.Text       = state.nameText
+		nameTag.TextColor3 = nameCol
+		nameTag.Visible    = state.enabled and state.nameTag
 
-		-- Head dot — центр головы
-		local headCY = modelTop + (modelBot - modelTop) * 0.08
+		-- Head dot
+		local headCY = modelTop + modelH * 0.08
 		headDot.Position = UDim2.fromOffset(cx, headCY)
-		headDot.BackgroundColor3 = state.boxColor
+		headDot.BackgroundColor3 = boxCol
+		headDot.Visible = state.enabled and state.headDot
 
-		-- Health bar справа
-		hbOutline.Position = UDim2.fromOffset(boxLeft + boxW + 3, boxTop)
-		hbOutline.Size     = UDim2.fromOffset(4, boxH)
+		-- Health bar (по позиции)
+		hbOutline.Visible = state.enabled and state.healthBar
 		local hp = math.clamp(state.healthPct, 0, 1)
-		hbFill.Size = UDim2.new(1, 0, hp, 0)
 		hbFill.BackgroundColor3 = Color3.fromRGB(255, 0, 0):Lerp(Color3.fromRGB(0, 255, 0), hp)
 
-		-- Tracer — от нижнего-левого угла viewFrame к нижнему-центру бокса
-		local fromX, fromY = 0, H
-		local toX = boxLeft + boxW / 2
-		local toY = boxTop + boxH
-		local dx, dy = toX - fromX, toY - fromY
-		local dist = math.sqrt(dx * dx + dy * dy)
-		tracer.Position = UDim2.fromOffset(fromX, fromY)
-		tracer.Size     = UDim2.fromOffset(dist, 1.5)
-		tracer.Rotation = math.deg(math.atan2(dy, dx))
-	end)
-
-	-- Видимость — тоже каждый кадр (на случай если state поменялся)
-	local visConn
-	visConn = RunService.RenderStepped:Connect(function()
-		if not viewFrame.Parent then
-			visConn:Disconnect()
-			return
+		if state.healthPos == "Right" then
+			hbOutline.AnchorPoint = Vector2.new(0, 0)
+			hbOutline.Position = UDim2.fromOffset(boxLeft + boxW + 3, boxTop)
+			hbOutline.Size = UDim2.fromOffset(4, boxH)
+			hbFill.Size = UDim2.new(1, 0, hp, 0)
+			hbFill.Position = UDim2.new(0, 0, 1, 0)
+			hbFill.AnchorPoint = Vector2.new(0, 1)
+		elseif state.healthPos == "Left" then
+			hbOutline.AnchorPoint = Vector2.new(1, 0)
+			hbOutline.Position = UDim2.fromOffset(boxLeft - 3, boxTop)
+			hbOutline.Size = UDim2.fromOffset(4, boxH)
+			hbFill.Size = UDim2.new(1, 0, hp, 0)
+			hbFill.Position = UDim2.new(0, 0, 1, 0)
+			hbFill.AnchorPoint = Vector2.new(0, 1)
+		elseif state.healthPos == "Top" then
+			hbOutline.AnchorPoint = Vector2.new(0, 1)
+			hbOutline.Position = UDim2.fromOffset(boxLeft, boxTop - 3)
+			hbOutline.Size = UDim2.fromOffset(boxW, 4)
+			hbFill.Size = UDim2.new(hp, 0, 1, 0)
+			hbFill.Position = UDim2.new(0, 0, 0, 0)
+			hbFill.AnchorPoint = Vector2.new(0, 0)
 		end
-		boxFrame.Visible = state.enabled and state.boxes
-		boxStroke.Color  = state.boxColor
-		headDot.Visible  = state.enabled and state.headDot
-		tracer.Visible   = state.enabled and state.tracers
-		tracer.BackgroundColor3 = state.tracerColor
-		hbOutline.Visible = state.enabled and state.healthBar
-		nameTag.Visible   = state.enabled and state.nameTag
+
+		-- Tracer: ровная горизонтальная полоска сверху-справа
+		-- от правого края превью → к верхнему-правому углу бокса
+		local fromX = W
+		local fromY = boxTop
+		local toX   = boxLeft + boxW
+		local dist  = fromX - toX
+		tracer.Position = UDim2.fromOffset(fromX, fromY)
+		tracer.Size     = UDim2.fromOffset(dist, 2)
+		tracer.BackgroundColor3 = tracerCol
+		tracer.Visible  = state.enabled and state.tracers
 	end)
 
 	-- Тема
@@ -1518,19 +1533,21 @@ function Container:AddESPPreview(o)
 		end
 	end)
 
-	-- === API ===
+	-- API
 	local api = {}
-	function api:SetEnabled(v)      state.enabled   = v end
-	function api:SetBoxes(v)        state.boxes     = v end
-	function api:SetTracers(v)      state.tracers   = v end
-	function api:SetHeadDot(v)      state.headDot   = v end
-	function api:SetHealthBar(v)    state.healthBar = v end
-	function api:SetNameTag(v)      state.nameTag   = v end
-	function api:SetBoxColor(c)     state.boxColor    = c end
-	function api:SetTracerColor(c)  state.tracerColor = c end
-	function api:SetNameColor(c)    state.nameColor   = c end
-	function api:SetHealthPercent(p) state.healthPct = p end
-	function api:SetNameText(t)     state.nameText = t end
+	function api:SetEnabled(v)        state.enabled   = v end
+	function api:SetBoxes(v)          state.boxes     = v end
+	function api:SetTracers(v)        state.tracers   = v end
+	function api:SetHeadDot(v)        state.headDot   = v end
+	function api:SetHealthBar(v)      state.healthBar = v end
+	function api:SetNameTag(v)        state.nameTag   = v end
+	function api:SetRainbow(v)        state.rainbow   = v end
+	function api:SetBoxColor(c)       state.boxColor    = c end
+	function api:SetTracerColor(c)    state.tracerColor = c end
+	function api:SetNameColor(c)      state.nameColor   = c end
+	function api:SetHealthPercent(p)  state.healthPct = p end
+	function api:SetHealthPosition(p) state.healthPos = p end
+	function api:SetNameText(t)       state.nameText = t end
 	function api:SetBodyColor(c)
 		for _, p in ipairs(model:GetChildren()) do
 			if p:IsA("BasePart") then p.Color = c end
@@ -1547,6 +1564,7 @@ function Container:AddFolder(o)
 		BorderSizePixel = 0,
 		AutomaticSize = Enum.AutomaticSize.Y,
 		Size = UDim2.new(1, 0, 0, 0),
+		ClipsDescendants = true,
 		LayoutOrder = self:_next(),
 		Parent = self.frame,
 	})
@@ -1586,15 +1604,22 @@ function Container:AddFolder(o)
 	chev.AnchorPoint = Vector2.new(.5, .5)
 	chev.Position = UDim2.new(1, -28, .5, 0)
 
-	-- ПРОСТО: обычный контейнер, просто Visible = false.
-	-- Нет tween высоты → нет 1-кадрового глюка пустой карточки.
-	local content = new("Frame", {
+	-- FIX: обёртка с ЯВНОЙ высотой (0 = закрыто, N = открыто).
+	-- UIListLayout учитывает невидимые объекты, поэтому оборачиваем и режем через ClipsDescendants.
+	local wrapper = new("Frame", {
 		BackgroundTransparency = 1,
-		AutomaticSize = Enum.AutomaticSize.Y,
 		Size = UDim2.new(1, 0, 0, 0),
-		Visible = false,
+		ClipsDescendants = true,
 		LayoutOrder = 1,
 		Parent = card,
+	})
+
+	-- content ВСЕГДА видим и ВСЕГДА считает свою высоту через AutomaticSize
+	local content = new("Frame", {
+		BackgroundTransparency = 1,
+		Size = UDim2.new(1, 0, 0, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		Parent = wrapper,
 	})
 	new("UIListLayout", { Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder, Parent = content })
 	pad(content, 8, 0, 8, 8)
@@ -1602,10 +1627,21 @@ function Container:AddFolder(o)
 	local c = newContainer(win, content, "surfaceContainerHighest")
 	local open = false
 
+	-- держим высоту обёртки синхронной с реальным размером content
+	win:Connect(content:GetPropertyChangedSignal("AbsoluteSize"), function()
+		if open and wrapper.Parent then
+			wrapper.Size = UDim2.new(1, 0, 0, content.AbsoluteSize.Y)
+		end
+	end)
+
 	function c.SetOpen(_, v)
 		open = v and true or false
-		content.Visible = open
 		tween(chev, .22, { Rotation = open and 180 or 0 })
+		task.defer(function()
+			if not wrapper.Parent then return end
+			local h = open and content.AbsoluteSize.Y or 0
+			wrapper.Size = UDim2.new(1, 0, 0, h)
+		end)
 	end
 
 	header.MouseButton1Down:Connect(function() ripple(card, win.Colors.onSurface) end)
