@@ -1559,6 +1559,8 @@ end
 function Container:AddFolder(o)
 	local win = self.win
 
+	-- FIX: Frame вместо CanvasGroup + ClipsDescendants
+	-- CanvasGroup рендерится в текстуру и ломает AutomaticSize (1-кадровый глюк).
 	local card = new("Frame", {
 		Name = o.Name or "Folder",
 		BorderSizePixel = 0,
@@ -1572,21 +1574,33 @@ function Container:AddFolder(o)
 	win:Bind(card, "BackgroundColor3", self.rowRole)
 	new("UIListLayout", { SortOrder = Enum.SortOrder.LayoutOrder, Parent = card })
 
+	-- Заголовок (фиксированная высота, ничего не меняется)
 	local header = new("TextButton", {
-		Text = "", AutoButtonColor = false, BackgroundTransparency = 1,
-		Size = UDim2.new(1, 0, 0, 64), LayoutOrder = 0, Parent = card,
+		Text = "",
+		AutoButtonColor = false,
+		BackgroundTransparency = 1,
+		Size = UDim2.new(1, 0, 0, 64),
+		LayoutOrder = 0,
+		Parent = card,
 	})
 	local layer = new("Frame", {
-		Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1,
-		BorderSizePixel = 0, Parent = header,
+		Size = UDim2.fromScale(1, 1),
+		BackgroundTransparency = 1,
+		BorderSizePixel = 0,
+		Parent = header,
 	})
 	win:Bind(layer, "BackgroundColor3", "onSurface")
-	header.MouseEnter:Connect(function() tween(layer, .15, { BackgroundTransparency = .94 }) end)
-	header.MouseLeave:Connect(function() tween(layer, .2, { BackgroundTransparency = 1 }) end)
+	header.MouseEnter:Connect(function()
+		tween(layer, .15, { BackgroundTransparency = .94 })
+	end)
+	header.MouseLeave:Connect(function()
+		tween(layer, .2, { BackgroundTransparency = 1 })
+	end)
 
 	local hasDesc = o.Description ~= nil and o.Description ~= ""
 	local title = text({
-		Text = o.Name or "Folder", TextSize = 15,
+		Text = o.Name or "Folder",
+		TextSize = 15,
 		Size = UDim2.new(1, -72, 0, hasDesc and 20 or 64),
 		Position = UDim2.fromOffset(16, hasDesc and 12 or 0),
 		Parent = header,
@@ -1594,8 +1608,11 @@ function Container:AddFolder(o)
 	win:Bind(title, "TextColor3", "onSurface")
 	if hasDesc then
 		local d = text({
-			Text = o.Description, Font = Enum.Font.Gotham, TextSize = 12.5,
-			Size = UDim2.new(1, -72, 0, 16), Position = UDim2.fromOffset(16, 34),
+			Text = o.Description,
+			Font = Enum.Font.Gotham,
+			TextSize = 12.5,
+			Size = UDim2.new(1, -72, 0, 16),
+			Position = UDim2.fromOffset(16, 34),
 			Parent = header,
 		})
 		win:Bind(d, "TextColor3", "onSurfaceVariant")
@@ -1604,9 +1621,9 @@ function Container:AddFolder(o)
 	chev.AnchorPoint = Vector2.new(.5, .5)
 	chev.Position = UDim2.new(1, -28, .5, 0)
 
-	-- FIX: обёртка с ЯВНОЙ высотой (0 = закрыто, N = открыто).
-	-- UIListLayout учитывает невидимые объекты, поэтому оборачиваем и режем через ClipsDescendants.
-	local wrapper = new("Frame", {
+	-- FIX: обёртка с явным размером — изолирует AutomaticSize детей от карточки.
+	-- Так карточка растёт детерминированно, без 1-кадрового раздувания.
+	local contentWrap = new("Frame", {
 		BackgroundTransparency = 1,
 		Size = UDim2.new(1, 0, 0, 0),
 		ClipsDescendants = true,
@@ -1614,40 +1631,55 @@ function Container:AddFolder(o)
 		Parent = card,
 	})
 
-	-- content ВСЕГДА видим и ВСЕГДА считает свою высоту через AutomaticSize
+	-- Реальный контент внутри обёртки (AutomaticSize = Y, чтобы рос по детям)
 	local content = new("Frame", {
 		BackgroundTransparency = 1,
-		Size = UDim2.new(1, 0, 0, 0),
 		AutomaticSize = Enum.AutomaticSize.Y,
-		Parent = wrapper,
+		Size = UDim2.new(1, 0, 0, 0),
+		Parent = contentWrap,
 	})
-	new("UIListLayout", { Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder, Parent = content })
+	new("UIListLayout", {
+		Padding = UDim.new(0, 6),
+		SortOrder = Enum.SortOrder.LayoutOrder,
+		Parent = content,
+	})
 	pad(content, 8, 0, 8, 8)
 
 	local c = newContainer(win, content, "surfaceContainerHighest")
 	local open = false
 
-	-- держим высоту обёртки синхронной с реальным размером content
-	win:Connect(content:GetPropertyChangedSignal("AbsoluteSize"), function()
-		if open and wrapper.Parent then
-			wrapper.Size = UDim2.new(1, 0, 0, content.AbsoluteSize.Y)
-		end
-	end)
-
 	function c.SetOpen(_, v)
 		open = v and true or false
 		tween(chev, .22, { Rotation = open and 180 or 0 })
+
+		-- Откладываем на кадр, чтобы content.AbsoluteSize успел пересчитаться
 		task.defer(function()
-			if not wrapper.Parent then return end
-			local h = open and content.AbsoluteSize.Y or 0
-			wrapper.Size = UDim2.new(1, 0, 0, h)
+			if not contentWrap.Parent then return end
+			local target = open and content.AbsoluteSize.Y or 0
+			tween(contentWrap, .25, { Size = UDim2.new(1, 0, 0, target) }, Quint, Out)
 		end)
 	end
 
-	header.MouseButton1Down:Connect(function() ripple(card, win.Colors.onSurface) end)
-	header.MouseButton1Click:Connect(function() c:SetOpen(not open) end)
+	-- Если в открытую папку добавили элемент — расширяем обёртку под контент
+	win:Connect(content:GetPropertyChangedSignal("AbsoluteSize"), function()
+		if open and contentWrap.Parent then
+			local target = content.AbsoluteSize.Y
+			if math.abs(contentWrap.AbsoluteSize.Y - target) > 1 then
+				contentWrap.Size = UDim2.new(1, 0, 0, target)
+			end
+		end
+	end)
 
-	if o.Open then c:SetOpen(true) end
+	header.MouseButton1Down:Connect(function()
+		ripple(card, win.Colors.onSurface)
+	end)
+	header.MouseButton1Click:Connect(function()
+		c:SetOpen(not open)
+	end)
+
+	if o.Open then
+		c:SetOpen(true)
+	end
 	return c
 end
 
