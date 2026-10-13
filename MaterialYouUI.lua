@@ -23,6 +23,7 @@ local UI = {}
 local Window = {}
 Window.__index = Window
 local Container = {}
+UI._lastPickerHue = 0
 Container.__index = Container
 
 local FULL = UDim.new(1, 0)
@@ -116,48 +117,54 @@ end
 -- ============================================================
 
 local function buildScheme(theme)
-	local h = theme.seed:ToHSV()
+	local h0, s0, v0 = theme.seed:ToHSV()
+	-- Если seed ахроматический (белый, чёрный, серый) — строим grayscale тему,
+	-- иначе ToHSV вернёт h=0 (красный) и всё станет красным.
+	local achromatic = s0 < 0.06
+	local h = achromatic and 0 or h0
+	local satMul = achromatic and 0 or 1
+
 	if theme.dark then
 		return {
-			background = hsv(h, .30, .08),
-			surface = hsv(h, .30, .10),
-			surfaceContainer = hsv(h, .28, .14),
-			surfaceContainerHigh = hsv(h, .26, .18),
-			surfaceContainerHighest = hsv(h, .24, .22),
-			primary = hsv(h, .38, .98),
-			onPrimary = hsv(h, .80, .28),
-			primaryContainer = hsv(h, .65, .42),
-			onPrimaryContainer = hsv(h, .12, 1),
-			secondaryContainer = hsv(h, .40, .32),
-			onSecondaryContainer = hsv(h, .14, .96),
-			tertiary = hsv(h + .10, .40, .98),
-			onSurface = hsv(h, .06, .92),
-			onSurfaceVariant = hsv(h, .12, .76),
-			outline = hsv(h, .12, .55),
-			outlineVariant = hsv(h, .16, .30),
-			inverseSurface = hsv(h, .08, .90),
-			inverseOnSurface = hsv(h, .25, .16),
+			background = hsv(h, .30 * satMul, .08),
+			surface = hsv(h, .30 * satMul, .10),
+			surfaceContainer = hsv(h, .28 * satMul, .14),
+			surfaceContainerHigh = hsv(h, .26 * satMul, .18),
+			surfaceContainerHighest = hsv(h, .24 * satMul, .22),
+			primary = hsv(h, .38 * satMul, .98),
+			onPrimary = hsv(h, .80 * satMul, .28),
+			primaryContainer = hsv(h, .65 * satMul, .42),
+			onPrimaryContainer = hsv(h, .12 * satMul, 1),
+			secondaryContainer = hsv(h, .40 * satMul, .32),
+			onSecondaryContainer = hsv(h, .14 * satMul, .96),
+			tertiary = hsv(h + .10 * satMul, .40 * satMul, .98),
+			onSurface = hsv(h, .06 * satMul, .92),
+			onSurfaceVariant = hsv(h, .12 * satMul, .76),
+			outline = hsv(h, .12 * satMul, .55),
+			outlineVariant = hsv(h, .16 * satMul, .30),
+			inverseSurface = hsv(h, .08 * satMul, .90),
+			inverseOnSurface = hsv(h, .25 * satMul, .16),
 		}
 	else
 		return {
-			background = hsv(h, .04, .99),
-			surface = hsv(h, .04, .985),
-			surfaceContainer = hsv(h, .07, .955),
-			surfaceContainerHigh = hsv(h, .09, .93),
-			surfaceContainerHighest = hsv(h, .11, .905),
-			primary = hsv(h, .64, .62),
+			background = hsv(h, .04 * satMul, .99),
+			surface = hsv(h, .04 * satMul, .985),
+			surfaceContainer = hsv(h, .07 * satMul, .955),
+			surfaceContainerHigh = hsv(h, .09 * satMul, .93),
+			surfaceContainerHighest = hsv(h, .11 * satMul, .905),
+			primary = hsv(h, .64 * satMul, .62),
 			onPrimary = hsv(0, 0, 1),
-			primaryContainer = hsv(h, .22, .99),
-			onPrimaryContainer = hsv(h, .92, .30),
-			secondaryContainer = hsv(h, .16, .96),
-			onSecondaryContainer = hsv(h, .75, .30),
-			tertiary = hsv(h + .10, .55, .75),
-			onSurface = hsv(h, .12, .12),
-			onSurfaceVariant = hsv(h, .14, .36),
-			outline = hsv(h, .10, .48),
-			outlineVariant = hsv(h, .12, .78),
-			inverseSurface = hsv(h, .15, .20),
-			inverseOnSurface = hsv(h, .05, .96),
+			primaryContainer = hsv(h, .22 * satMul, .99),
+			onPrimaryContainer = hsv(h, .92 * satMul, .30),
+			secondaryContainer = hsv(h, .16 * satMul, .96),
+			onSecondaryContainer = hsv(h, .75 * satMul, .30),
+			tertiary = hsv(h + .10 * satMul, .55 * satMul, .75),
+			onSurface = hsv(h, .12 * satMul, .12),
+			onSurfaceVariant = hsv(h, .14 * satMul, .36),
+			outline = hsv(h, .10 * satMul, .48),
+			outlineVariant = hsv(h, .12 * satMul, .78),
+			inverseSurface = hsv(h, .15 * satMul, .20),
+			inverseOnSurface = hsv(h, .05 * satMul, .96),
 		}
 	end
 end
@@ -1838,7 +1845,10 @@ function Container:AddColorpicker(o)
 		win:Bind(applyBtn, "TextColor3", "onPrimary")
 
 		-- ============ Логика ============
-		local h, s, v = color:ToHSV()
+				local h, s, v = color:ToHSV()
+		if s < 0.01 then
+			h = UI._lastPickerHue or 0
+		end
 		local previewColor = color
 
 		local function refreshUI()
@@ -1862,7 +1872,11 @@ function Container:AddColorpicker(o)
 		end
 		local function setRGB(c)
 			previewColor = c
-			h, s, v = c:ToHSV()
+			local hh, ss, vv = c:ToHSV()
+			h, s, v = hh, ss, vv
+			if ss > 0.01 then
+				UI._lastPickerHue = hh
+			end
 			refreshUI()
 		end
 
@@ -1884,6 +1898,7 @@ function Container:AddColorpicker(o)
 		local hueDragging = false
 		local function hueFromInput(i)
 			local relY = math.clamp((i.Position.Y - hueWrap.AbsolutePosition.Y) / math.max(hueWrap.AbsoluteSize.Y, 1), 0, 1)
+			UI._lastPickerHue = relY
 			setHSV(relY, s, v)
 		end
 		hueHit.InputBegan:Connect(function(i)
