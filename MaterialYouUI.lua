@@ -1617,28 +1617,40 @@ function Container:AddColorpicker(o)
 		end
 		if y < 8 then y = 8 end
 
-		-- popup теперь обычный Frame (не CanvasGroup) — клики надёжнее
-		local popup = new("Frame", {
+				-- popup = CanvasGroup → закрытие анимирует ВСЁ одной группой
+		local popup = new("CanvasGroup", {
 			Position = UDim2.fromOffset(x, y),
 			Size = UDim2.fromOffset(POP_W, POP_H),
-			BackgroundTransparency = 1,
+			GroupTransparency = 1,
 			BorderSizePixel = 0,
 			ZIndex = 61,
 			Parent = overlay,
 		})
 
+		-- визуальный фон попапа
 		local popupBg = new("Frame", {
 			Size = UDim2.fromScale(1, 1),
-			BackgroundTransparency = 1,
+			BackgroundColor3 = win.Colors.surfaceContainerHighest,
 			BorderSizePixel = 0,
 			ZIndex = 1,
 			Parent = popup,
 		})
 		corner(popupBg, 20)
-		win:Bind(popupBg, "BackgroundColor3", "surfaceContainerHighest")
 		local ps = new("UIStroke", { Thickness = 1, Parent = popupBg })
 		win:Bind(ps, "Color", "outlineVariant")
-		tween(popupBg, .22, { BackgroundTransparency = 0 })
+
+		-- FIX: прозрачный блокер-«съедатель» кликов.
+		-- Клик по пустому месту попапа не проходит в catcher → попап не закрывается.
+		local bgBlocker = new("TextButton", {
+			Size = UDim2.fromScale(1, 1),
+			BackgroundTransparency = 1,
+			Text = "",
+			AutoButtonColor = false,
+			ZIndex = 2,
+			Parent = popup,
+		})
+
+		tween(popup, .22, { GroupTransparency = 0 })
 
 		-- ============ SV-квадрат ============
 		-- FIX: каждый градиент-фрейм имеет свой UICorner с тем же радиусом,
@@ -1947,13 +1959,15 @@ function Container:AddColorpicker(o)
 		local function close()
 			if closed then return end
 			closed = true
-			tween(popupBg, .15, { BackgroundTransparency = 1 })
-			pcall(function() ps.Transparency = 1 end)
+			-- одна группа → весь попап (фон + все элементы) исчезает одновременно
+			tween(popup, .15, { GroupTransparency = 1 })
 			catcher:Destroy()
 			overlay.Active = false
 			task.delay(.18, function()
 				popup:Destroy()
-				if not win._popupClose then overlay.Visible = false end
+				if not win._popupClose then
+					overlay.Visible = false
+				end
 			end)
 		end
 		win._popupClose = close
@@ -2638,7 +2652,10 @@ function Window:Notify(o)
 		Parent = slot,
 	})
 	corner(toast, 18)
-	win:Bind(toast, "BackgroundColor3", "inverseSurface")
+	-- FIX: используем поверхность текущей темы, а не inverse
+	win:Bind(toast, "BackgroundColor3", "surfaceContainerHighest")
+	local toastStroke = new("UIStroke", { Thickness = 1, Parent = toast })
+	win:Bind(toastStroke, "Color", "outlineVariant")
 	pad(toast, 14, 12, 16, 12)
 
 	local iconBox = new("Frame", {
@@ -2646,9 +2663,9 @@ function Window:Notify(o)
 		Size = UDim2.fromOffset(24, 24),
 		Parent = toast,
 	})
-	local icon = makeShape(iconBox, o.Shape or win.LogoShape, win.Colors.primaryContainer)
+	local icon = makeShape(iconBox, o.Shape or win.LogoShape, win.Colors.primary)
 	for _, part in ipairs(icon.Parts) do
-		win:Bind(part, "BackgroundColor3", "primaryContainer")
+		win:Bind(part, "BackgroundColor3", "primary")
 	end
 
 	local stack = new("Frame", {
@@ -2669,7 +2686,8 @@ function Window:Notify(o)
 			LayoutOrder = 1,
 			Parent = stack,
 		})
-		win:Bind(t, "TextColor3", "inverseOnSurface")
+		-- FIX: цвет текста = обычный, не inverse
+		win:Bind(t, "TextColor3", "onSurface")
 	end
 	local body = text({
 		Text = o.Text or "",
@@ -2682,7 +2700,7 @@ function Window:Notify(o)
 		LayoutOrder = 2,
 		Parent = stack,
 	})
-	win:Bind(body, "TextColor3", "inverseOnSurface")
+	win:Bind(body, "TextColor3", "onSurfaceVariant")
 
 	local gone = false
 	local function dismiss()
@@ -2697,7 +2715,6 @@ function Window:Notify(o)
 	end
 	toast.InputBegan:Connect(function(i)
 		if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
-			playClick(0.85)
 			dismiss()
 		end
 	end)
