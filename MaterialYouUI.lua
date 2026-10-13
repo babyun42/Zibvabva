@@ -17,6 +17,7 @@ local RunService = game:GetService("RunService")
 local Players = game:GetService("Players")
 local GuiService = game:GetService("GuiService")
 local SoundService = game:GetService("SoundService")
+local GuiService = game:GetService("GuiService")
 
 local UI = {}
 local Window = {}
@@ -173,31 +174,43 @@ UI.Themes = {
 UI.ThemeOrder = { "Dark", "Light", "Ocean", "Rose", "Forest", "Sunset", "Lavender" }
 
 -- ============================================================
---  Использует 3 уровня:
---    1) _G (переживает loadstring в одной сессии)
---    2) StringValue в CoreGui (переживает повторный запуск скрипта)
---    3) writefile (если executor поддерживает — переживёт перезаход)
+--  Сохранение выбранной темы (безопасно для всех executor'ов)
 -- ============================================================
 local PERSIST_FOLDER = "MaterialYouUI_Persist"
 local PERSIST_KEY    = "Theme"
 
-local function getHolder()
-	local holder = CoreGui:FindFirstChild(PERSIST_FOLDER)
-	if not holder then
-		pcall(function()
-			holder = new("Folder", { Name = PERSIST_FOLDER, Parent = CoreGui })
-		end)
+-- безопасно получаем контейнер для хранения (gethui → CoreGui → PlayerGui)
+local function getPersistHolder()
+	local candidates = {}
+	if gethui then
+		pcall(function() table.insert(candidates, gethui()) end)
 	end
-	return holder
+	pcall(function() table.insert(candidates, game:GetService("CoreGui")) end)
+	pcall(function() table.insert(candidates, Players.LocalPlayer:WaitForChild("PlayerGui", 2)) end)
+
+	for _, parent in ipairs(candidates) do
+		if parent then
+			local ok, holder = pcall(function()
+				local existing = parent:FindFirstChild(PERSIST_FOLDER)
+				if existing then return existing end
+				local f = Instance.new("Folder")
+				f.Name = PERSIST_FOLDER
+				f.Parent = parent
+				return f
+			end)
+			if ok and holder then return holder end
+		end
+	end
+	return nil
 end
 
 local function loadSavedTheme()
-	-- 1) _G — быстрее всего
+	-- 1) _G — мгновенно
 	if _G.__MaterialYouUI_Theme then
 		return _G.__MaterialYouUI_Theme
 	end
-	-- 2) CoreGui StringValue — работает у всех, живёт в течение сессии
-	local holder = CoreGui:FindFirstChild(PERSIST_FOLDER)
+	-- 2) CoreGui / gethui StringValue
+	local holder = getPersistHolder()
 	if holder then
 		local sv = holder:FindFirstChild(PERSIST_KEY)
 		if sv and sv:IsA("StringValue") and sv.Value ~= "" then
@@ -205,7 +218,7 @@ local function loadSavedTheme()
 			return sv.Value
 		end
 	end
-	-- 3) Файл — если executor умеет, переживёт перезаход
+	-- 3) Файл — если executor умеет
 	if type(readfile) == "function" and type(isfile) == "function" then
 		local ok, data = pcall(function()
 			if isfile("MaterialYouUI_theme.txt") then
@@ -224,16 +237,20 @@ end
 local function saveThemeName(name)
 	-- 1) в _G
 	_G.__MaterialYouUI_Theme = name
-	-- 2) в CoreGui StringValue (работает без writefile)
-	local holder = getHolder()
+	-- 2) в CoreGui StringValue
+	local holder = getPersistHolder()
 	if holder then
-		local sv = holder:FindFirstChild(PERSIST_KEY)
-		if not sv then
-			sv = new("StringValue", { Name = PERSIST_KEY, Parent = holder })
-		end
-		sv.Value = name
+		pcall(function()
+			local sv = holder:FindFirstChild(PERSIST_KEY)
+			if not sv then
+				sv = Instance.new("StringValue")
+				sv.Name = PERSIST_KEY
+				sv.Parent = holder
+			end
+			sv.Value = name
+		end)
 	end
-	-- 3) в файл, если возможно
+	-- 3) в файл
 	if type(writefile) == "function" then
 		pcall(function() writefile("MaterialYouUI_theme.txt", name) end)
 	end
