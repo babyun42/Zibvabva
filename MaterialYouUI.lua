@@ -11,11 +11,6 @@
 
 	Использование: см. example.lua
 ]]
-
-UI.HoverAlpha = 0.975  -- 0..1, больше = слабее
-
-tween(layer, .15, { BackgroundTransparency = UI.HoverAlpha })
-
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
