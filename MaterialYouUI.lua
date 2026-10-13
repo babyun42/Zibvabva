@@ -1617,9 +1617,6 @@ function Container:AddColorpicker(o)
 		end
 		if y < 8 then y = 8 end
 
-				-- popup = CanvasGroup → закрытие анимирует ВСЁ одной группой
-				-- ============ Popup root ============
-		-- CanvasGroup — только для плавного fade при закрытии
 		local popupRoot = new("CanvasGroup", {
 			Position = UDim2.fromOffset(x, y),
 			Size = UDim2.fromOffset(POP_W, POP_H),
@@ -1629,30 +1626,19 @@ function Container:AddColorpicker(o)
 			Parent = overlay,
 		})
 
-		-- Frame с фоном, скруглением и ClipsDescendants — гарантирует круглые углы
+		-- Сам popup: фон + скругление + stroke. БЕЗ ClipsDescendants —
+		-- иначе UIStroke обрезается прямоугольником и углы становятся квадратными.
 		local popup = new("Frame", {
 			Size = UDim2.fromScale(1, 1),
 			BackgroundColor3 = win.Colors.surfaceContainerHighest,
 			BorderSizePixel = 0,
-			ClipsDescendants = true,
 			Parent = popupRoot,
 		})
 		corner(popup, 20)
-
-		-- Обводка — отдельный Frame ВНУТРИ клипа с тем же радиусом,
-		-- так UIStroke идёт по скруглённому контуру
-		local outline = new("Frame", {
-			Size = UDim2.fromScale(1, 1),
-			BackgroundTransparency = 1,
-			BorderSizePixel = 0,
-			ZIndex = 3,
-			Parent = popup,
-		})
-		corner(outline, 20)
-		local ps = new("UIStroke", { Thickness = 1, Parent = outline })
+		local ps = new("UIStroke", { Thickness = 1, Parent = popup })
 		win:Bind(ps, "Color", "outlineVariant")
 
-		-- Блокер кликов — прозрачный TextButton на весь попап
+		-- Прозрачный блокер кликов по пустым зонам попапа
 		local bgBlocker = new("TextButton", {
 			Size = UDim2.fromScale(1, 1),
 			BackgroundTransparency = 1,
