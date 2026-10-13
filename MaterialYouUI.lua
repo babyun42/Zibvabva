@@ -1504,7 +1504,6 @@ function Container:AddColorpicker(o)
 		local POP_W   = PAD * 2 + SV_SIZE + 12 + HUE_W + 16 + RIGHT_W
 		local POP_H   = PAD * 2 + SV_SIZE
 
-		-- клик вне popup закрывает
 		local catcher = new("TextButton", {
 			Text = "",
 			BackgroundTransparency = 1,
@@ -1525,48 +1524,53 @@ function Container:AddColorpicker(o)
 		end
 		if y < 8 then y = 8 end
 
-		local popup = new("CanvasGroup", {
+		-- popup теперь обычный Frame (не CanvasGroup) — клики надёжнее
+		local popup = new("Frame", {
 			Position = UDim2.fromOffset(x, y),
 			Size = UDim2.fromOffset(POP_W, POP_H),
-			GroupTransparency = 1,
+			BackgroundTransparency = 1,
 			BorderSizePixel = 0,
 			ZIndex = 61,
 			Parent = overlay,
 		})
-		corner(popup, 20)
-		win:Bind(popup, "BackgroundColor3", "surfaceContainerHighest")
-		local ps = new("UIStroke", { Thickness = 1, Parent = popup })
+
+		local popupBg = new("Frame", {
+			Size = UDim2.fromScale(1, 1),
+			BackgroundTransparency = 1,
+			BorderSizePixel = 0,
+			ZIndex = 1,
+			Parent = popup,
+		})
+		corner(popupBg, 20)
+		win:Bind(popupBg, "BackgroundColor3", "surfaceContainerHighest")
+		local ps = new("UIStroke", { Thickness = 1, Parent = popupBg })
 		win:Bind(ps, "Color", "outlineVariant")
+		tween(popupBg, .22, { BackgroundTransparency = 0 })
 
 		-- ============ SV-квадрат ============
-		-- FIX: обёртка с UICorner + ClipsDescendants + Active=true
-		-- 1) Active ловит клики до catcher'а (не даёт popup закрыться)
-		-- 2) ClipsDescendants обрезает градиенты по скруглённому контуру
+		-- FIX: каждый градиент-фрейм имеет свой UICorner с тем же радиусом,
+		--      потому что ClipsDescendants НЕ работает с UICorner.
+		local SV_RADIUS = 12
+
 		local svWrap = new("Frame", {
 			Position = UDim2.fromOffset(PAD, PAD),
 			Size = UDim2.fromOffset(SV_SIZE, SV_SIZE),
-			BackgroundColor3 = Color3.new(1, 1, 1),
-			BorderSizePixel = 0,
-			ClipsDescendants = true,
-			Active = true,
-			Parent = popup,
-		})
-		corner(svWrap, 12)
-
-		-- hue-подложка (за белым и чёрным градиентами)
-		local svHue = new("Frame", {
-			Size = UDim2.fromScale(1, 1),
 			BackgroundColor3 = color,
 			BorderSizePixel = 0,
-			Parent = svWrap,
+			ZIndex = 2,
+			Parent = popup,
 		})
-		-- белый горизонтальный градиент (S)
+		corner(svWrap, SV_RADIUS)
+
+		-- Белый градиент (S: white → transparent слева-направо)
 		local whiteOv = new("Frame", {
 			Size = UDim2.fromScale(1, 1),
 			BackgroundColor3 = Color3.new(1, 1, 1),
 			BorderSizePixel = 0,
+			ZIndex = 3,
 			Parent = svWrap,
 		})
+		corner(whiteOv, SV_RADIUS)   -- ← ключевой фикс
 		new("UIGradient", {
 			Rotation = 0,
 			Transparency = NumberSequence.new({
@@ -1575,13 +1579,16 @@ function Container:AddColorpicker(o)
 			}),
 			Parent = whiteOv,
 		})
-		-- чёрный вертикальный градиент (V)
+
+		-- Чёрный градиент (V: transparent → black сверху-вниз)
 		local blackOv = new("Frame", {
 			Size = UDim2.fromScale(1, 1),
 			BackgroundColor3 = Color3.new(0, 0, 0),
 			BorderSizePixel = 0,
+			ZIndex = 4,
 			Parent = svWrap,
 		})
+		corner(blackOv, SV_RADIUS)   -- ← ключевой фикс
 		new("UIGradient", {
 			Rotation = 90,
 			Transparency = NumberSequence.new({
@@ -1597,31 +1604,43 @@ function Container:AddColorpicker(o)
 			AnchorPoint = Vector2.new(0.5, 0.5),
 			BackgroundColor3 = color,
 			BorderSizePixel = 0,
-			ZIndex = 5,
+			ZIndex = 6,
 			Parent = svWrap,
 		})
 		corner(svCursor, FULL)
 		new("UIStroke", { Thickness = 2, Color = Color3.new(1, 1, 1), Parent = svCursor })
 
+		-- FIX: прозрачный TextButton ПОВЕРХ всего SV — гарантированно ловит клики
+		local svHit = new("TextButton", {
+			Size = UDim2.fromScale(1, 1),
+			BackgroundTransparency = 1,
+			Text = "",
+			AutoButtonColor = false,
+			ZIndex = 10,
+			Parent = svWrap,
+		})
+
 		-- ============ Hue-бар ============
-		-- FIX: та же схема — обёртка + внутренний градиент
+		local HUE_RADIUS = 7
+
 		local hueWrap = new("Frame", {
 			Position = UDim2.fromOffset(PAD + SV_SIZE + 12, PAD),
 			Size = UDim2.fromOffset(HUE_W, SV_SIZE),
 			BackgroundColor3 = Color3.new(1, 1, 1),
 			BorderSizePixel = 0,
-			ClipsDescendants = true,
-			Active = true,
+			ZIndex = 2,
 			Parent = popup,
 		})
-		corner(hueWrap, 7)
+		corner(hueWrap, HUE_RADIUS)
 
 		local hueFill = new("Frame", {
 			Size = UDim2.fromScale(1, 1),
 			BackgroundColor3 = Color3.new(1, 1, 1),
 			BorderSizePixel = 0,
+			ZIndex = 3,
 			Parent = hueWrap,
 		})
+		corner(hueFill, HUE_RADIUS)   -- ← ключевой фикс
 		new("UIGradient", {
 			Rotation = 90,
 			Color = ColorSequence.new({
@@ -1641,11 +1660,21 @@ function Container:AddColorpicker(o)
 			AnchorPoint = Vector2.new(0.5, 0.5),
 			BackgroundColor3 = Color3.new(1, 1, 1),
 			BorderSizePixel = 0,
-			ZIndex = 5,
+			ZIndex = 6,
 			Parent = hueWrap,
 		})
 		corner(hueCursor, 2)
 		new("UIStroke", { Thickness = 1.5, Color = Color3.new(0, 0, 0), Transparency = 0.4, Parent = hueCursor })
+
+		-- прозрачный TextButton поверх hue
+		local hueHit = new("TextButton", {
+			Size = UDim2.fromScale(1, 1),
+			BackgroundTransparency = 1,
+			Text = "",
+			AutoButtonColor = false,
+			ZIndex = 10,
+			Parent = hueWrap,
+		})
 
 		-- ============ Правая панель ============
 		local rightX = PAD + SV_SIZE + 12 + HUE_W + 16
@@ -1655,6 +1684,7 @@ function Container:AddColorpicker(o)
 			Size = UDim2.fromOffset(RIGHT_W, 60),
 			BackgroundColor3 = color,
 			BorderSizePixel = 0,
+			ZIndex = 5,
 			Parent = popup,
 		})
 		corner(previewSwatch, 12)
@@ -1665,6 +1695,7 @@ function Container:AddColorpicker(o)
 			Position = UDim2.fromOffset(rightX, PAD + 74),
 			Size = UDim2.fromOffset(RIGHT_W, 34),
 			BorderSizePixel = 0,
+			ZIndex = 5,
 			Parent = popup,
 		})
 		corner(hexBox, 10)
@@ -1681,6 +1712,7 @@ function Container:AddColorpicker(o)
 			TextSize = 14,
 			ClearTextOnFocus = false,
 			TextXAlignment = Enum.TextXAlignment.Center,
+			ZIndex = 6,
 			Parent = hexBox,
 		})
 		win:Bind(hexInput, "TextColor3", "onSurface")
@@ -1697,6 +1729,7 @@ function Container:AddColorpicker(o)
 			Font = Enum.Font.GothamMedium,
 			TextSize = 13,
 			AutoButtonColor = false,
+			ZIndex = 5,
 			Parent = popup,
 		})
 		corner(cancelBtn, 18)
@@ -1711,6 +1744,7 @@ function Container:AddColorpicker(o)
 			Font = Enum.Font.GothamBold,
 			TextSize = 13,
 			AutoButtonColor = false,
+			ZIndex = 5,
 			Parent = popup,
 		})
 		corner(applyBtn, 18)
@@ -1722,7 +1756,7 @@ function Container:AddColorpicker(o)
 		local previewColor = color
 
 		local function refreshUI()
-			svHue.BackgroundColor3 = Color3.fromHSV(h, 1, 1)
+			svWrap.BackgroundColor3 = Color3.fromHSV(h, 1, 1)
 			svCursor.Position = UDim2.new(s, 0, 1 - v, 0)
 			svCursor.BackgroundColor3 = previewColor
 			previewSwatch.BackgroundColor3 = previewColor
@@ -1746,27 +1780,27 @@ function Container:AddColorpicker(o)
 			refreshUI()
 		end
 
-		-- SV drag
+		-- SV drag через svHit
 		local svDragging = false
 		local function svFromInput(i)
 			local relX = math.clamp((i.Position.X - svWrap.AbsolutePosition.X) / math.max(svWrap.AbsoluteSize.X, 1), 0, 1)
 			local relY = math.clamp((i.Position.Y - svWrap.AbsolutePosition.Y) / math.max(svWrap.AbsoluteSize.Y, 1), 0, 1)
 			setHSV(h, relX, 1 - relY)
 		end
-		svWrap.InputBegan:Connect(function(i)
+		svHit.InputBegan:Connect(function(i)
 			if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
 				svDragging = true
 				svFromInput(i)
 			end
 		end)
 
-		-- Hue drag
+		-- Hue drag через hueHit
 		local hueDragging = false
 		local function hueFromInput(i)
 			local relY = math.clamp((i.Position.Y - hueWrap.AbsolutePosition.Y) / math.max(hueWrap.AbsoluteSize.Y, 1), 0, 1)
 			setHSV(relY, s, v)
 		end
-		hueWrap.InputBegan:Connect(function(i)
+		hueHit.InputBegan:Connect(function(i)
 			if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
 				hueDragging = true
 				hueFromInput(i)
@@ -1807,16 +1841,16 @@ function Container:AddColorpicker(o)
 		end)
 
 		refreshUI()
-		tween(popup, .22, { GroupTransparency = 0 })
 
 		local closed = false
 		local function close()
 			if closed then return end
 			closed = true
-			local tw = tween(popup, .15, { GroupTransparency = 1 })
+			tween(popupBg, .15, { BackgroundTransparency = 1 })
+			pcall(function() ps.Transparency = 1 end)
 			catcher:Destroy()
 			overlay.Active = false
-			tw.Completed:Once(function()
+			task.delay(.18, function()
 				popup:Destroy()
 				if not win._popupClose then overlay.Visible = false end
 			end)
