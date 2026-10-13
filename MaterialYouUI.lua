@@ -174,7 +174,7 @@ UI.Themes = {
 UI.ThemeOrder = { "Dark", "Light", "Ocean", "Rose", "Forest", "Sunset", "Lavender" }
 
 -- ============================================================
---  Сохранение выбранной темы (безопасно для всех executor'ов)
+--  Сохранение выбранной темы (всех executor'ов)
 -- ============================================================
 local PERSIST_FOLDER = "MaterialYouUI_Persist"
 local PERSIST_KEY    = "Theme"
@@ -254,6 +254,97 @@ local function saveThemeName(name)
 	if type(writefile) == "function" then
 		pcall(function() writefile("MaterialYouUI_theme.txt", name) end)
 	end
+end
+
+-- ============================================================
+--  Сохранение custom-цвета темы (Universal: _G + CoreGui + file)
+-- ============================================================
+local CUSTOM_COLOR_KEY  = "CustomThemeColor"
+local CUSTOM_DARK_KEY   = "CustomThemeDark"
+
+local function saveCustomThemeRaw(color, isDark)
+	_G.__MaterialYouUI_CustomColor = color
+	_G.__MaterialYouUI_CustomDark  = isDark
+
+	local holder = getPersistHolder and getPersistHolder()
+	if holder then
+		pcall(function()
+			local cv = holder:FindFirstChild(CUSTOM_COLOR_KEY)
+			if not cv then
+				cv = Instance.new("Color3Value")
+				cv.Name = CUSTOM_COLOR_KEY
+				cv.Parent = holder
+			end
+			cv.Value = color
+
+			local dv = holder:FindFirstChild(CUSTOM_DARK_KEY)
+			if not dv then
+				dv = Instance.new("BoolValue")
+				dv.Name = CUSTOM_DARK_KEY
+				dv.Parent = holder
+			end
+			dv.Value = isDark
+		end)
+	end
+
+	if type(writefile) == "function" then
+		pcall(function()
+			writefile("MaterialYouUI_customcolor.txt",
+				string.format("%d,%d,%d,%s",
+					math.floor(color.R * 255 + 0.5),
+					math.floor(color.G * 255 + 0.5),
+					math.floor(color.B * 255 + 0.5),
+					isDark and "1" or "0"))
+		end)
+	end
+end
+
+local function loadCustomThemeRaw()
+	-- 1) _G
+	if _G.__MaterialYouUI_CustomColor then
+		return _G.__MaterialYouUI_CustomColor, _G.__MaterialYouUI_CustomDark ~= false
+	end
+	-- 2) CoreGui
+	local holder = getPersistHolder and getPersistHolder()
+	if holder then
+		local cv = holder:FindFirstChild(CUSTOM_COLOR_KEY)
+		local dv = holder:FindFirstChild(CUSTOM_DARK_KEY)
+		if cv and cv:IsA("Color3Value") then
+			local isDark = dv and dv.Value or true
+			_G.__MaterialYouUI_CustomColor = cv.Value
+			_G.__MaterialYouUI_CustomDark  = isDark
+			return cv.Value, isDark
+		end
+	end
+	-- 3) file
+	if type(readfile) == "function" and type(isfile) == "function" then
+		local ok, data = pcall(function()
+			if isfile("MaterialYouUI_customcolor.txt") then
+				return readfile("MaterialYouUI_customcolor.txt")
+			end
+		end)
+		if ok and data and data ~= "" then
+			local parts = {}
+			for s in data:gmatch("[^,]+") do table.insert(parts, s) end
+			if #parts == 4 then
+				local r = tonumber(parts[1]) or 0
+				local g = tonumber(parts[2]) or 0
+				local b = tonumber(parts[3]) or 0
+				local isDark = parts[4] == "1"
+				local c = Color3.fromRGB(r, g, b)
+				_G.__MaterialYouUI_CustomColor = c
+				_G.__MaterialYouUI_CustomDark  = isDark
+				return c, isDark
+			end
+		end
+	end
+	return nil, nil
+end
+
+-- воспринимаемая яркость (0..1). <0.5 → тёмная тема
+local function isColorDark(c)
+	local lum = c.R * 0.299 + c.G * 0.587 + c.B * 0.114
+	return lum < 0.5
 end
 
 -- ============================================================
@@ -672,29 +763,24 @@ function Window:SetTheme(name)
 	saveThemeName(name)
 end
 
-function Window:SetThemeFromColor(color, isDark)
-	if isDark == nil then
-		local c = self.Colors.surface
-		isDark = (c.R + c.G + c.B) < 1.5
+function Window:SetThemeFromColor(color, isDarkOverride)
+	-- если явно не указан dark/light — определяем сами по яркости цвета
+	local isDark
+	if isDarkOverride ~= nil then
+		isDark = isDarkOverride
+	else
+		isDark = isColorDark(color)
 	end
+
 	self.ThemeName = "Custom"
 	self.CustomThemeColor = color
 	self.CustomThemeDark = isDark
 	self.Colors = buildScheme({ seed = color, dark = isDark })
 	self:_refresh(true)
 
-	_G.__MaterialYouUI_CustomColor = color
-	_G.__MaterialYouUI_CustomDark = isDark
-	if type(writefile) == "function" then
-		pcall(function()
-			writefile("MaterialYouUI_customcolor.txt",
-				string.format("%d,%d,%d,%s",
-					math.floor(color.R * 255 + 0.5),
-					math.floor(color.G * 255 + 0.5),
-					math.floor(color.B * 255 + 0.5),
-					isDark and "1" or "0"))
-		end)
-	end
+	-- сохраняем имя темы как "Custom" + сам цвет
+	saveThemeName("Custom")
+	saveCustomThemeRaw(color, isDark)
 end
 
 function Window:SetCustomThemeDark(isDark)
@@ -3018,7 +3104,7 @@ function UI:CreateWindow(o)
 	win.LogoShape = o.LogoShape or "Flower"
 	win.IntroText = o.IntroText or "Loading interface..."
 	win.IntroSwaps = o.IntroSwaps or 3
-		-- NEW: сначала пробуем загрузить сохранённую тему, потом опцию, потом Dark
+
 	local savedTheme = loadSavedTheme()
 	local customColor, customDark = loadCustomTheme()
 
