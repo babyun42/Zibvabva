@@ -173,32 +173,70 @@ UI.Themes = {
 UI.ThemeOrder = { "Dark", "Light", "Ocean", "Rose", "Forest", "Sunset", "Lavender" }
 
 -- ============================================================
---  Сохранение выбранной темы
+--  Использует 3 уровня:
+--    1) _G (переживает loadstring в одной сессии)
+--    2) StringValue в CoreGui (переживает повторный запуск скрипта)
+--    3) writefile (если executor поддерживает — переживёт перезаход)
 -- ============================================================
-local THEME_FILE = "MaterialYouUI_theme.txt"
+local PERSIST_FOLDER = "MaterialYouUI_Persist"
+local PERSIST_KEY    = "Theme"
 
-local function isFsAvailable()
-	return type(writefile) == "function"
-		and type(readfile) == "function"
-		and type(isfile) == "function"
+local function getHolder()
+	local holder = CoreGui:FindFirstChild(PERSIST_FOLDER)
+	if not holder then
+		pcall(function()
+			holder = new("Folder", { Name = PERSIST_FOLDER, Parent = CoreGui })
+		end)
+	end
+	return holder
 end
 
 local function loadSavedTheme()
-	if not isFsAvailable() then return nil end
-	local ok, data = pcall(function()
-		if isfile(THEME_FILE) then
-			return readfile(THEME_FILE)
+	-- 1) _G — быстрее всего
+	if _G.__MaterialYouUI_Theme then
+		return _G.__MaterialYouUI_Theme
+	end
+	-- 2) CoreGui StringValue — работает у всех, живёт в течение сессии
+	local holder = CoreGui:FindFirstChild(PERSIST_FOLDER)
+	if holder then
+		local sv = holder:FindFirstChild(PERSIST_KEY)
+		if sv and sv:IsA("StringValue") and sv.Value ~= "" then
+			_G.__MaterialYouUI_Theme = sv.Value
+			return sv.Value
 		end
-	end)
-	if ok and data and data ~= "" then
-		return (data:gsub("%s+", ""))
+	end
+	-- 3) Файл — если executor умеет, переживёт перезаход
+	if type(readfile) == "function" and type(isfile) == "function" then
+		local ok, data = pcall(function()
+			if isfile("MaterialYouUI_theme.txt") then
+				return readfile("MaterialYouUI_theme.txt")
+			end
+		end)
+		if ok and data and data ~= "" then
+			local name = data:gsub("%s+", "")
+			_G.__MaterialYouUI_Theme = name
+			return name
+		end
 	end
 	return nil
 end
 
 local function saveThemeName(name)
-	if not isFsAvailable() then return end
-	pcall(function() writefile(THEME_FILE, name) end)
+	-- 1) в _G
+	_G.__MaterialYouUI_Theme = name
+	-- 2) в CoreGui StringValue (работает без writefile)
+	local holder = getHolder()
+	if holder then
+		local sv = holder:FindFirstChild(PERSIST_KEY)
+		if not sv then
+			sv = new("StringValue", { Name = PERSIST_KEY, Parent = holder })
+		end
+		sv.Value = name
+	end
+	-- 3) в файл, если возможно
+	if type(writefile) == "function" then
+		pcall(function() writefile("MaterialYouUI_theme.txt", name) end)
+	end
 end
 
 function UI:AddTheme(name, seedColor, isDark)
@@ -2481,28 +2519,16 @@ local function playIntro(win, onDone)
 	status.TextColor3 = C.onSurfaceVariant
 
 		-- ===== Snake loading bar =====
-	local TRACK_W, TRACK_H = 280, 10
+		local TRACK_W, TRACK_H = 280, 10
+	-- FIX: контейнер полностью прозрачный, никакой подложки
 	local track = new("Frame", {
 		AnchorPoint = Vector2.new(.5, 0),
 		Position = UDim2.new(.5, 0, 0, 248),
 		Size = UDim2.fromOffset(TRACK_W, TRACK_H),
-		BackgroundColor3 = C.secondaryContainer,
+		BackgroundTransparency = 1,
 		BorderSizePixel = 0,
 		Parent = card,
 	})
-	corner(track, FULL)
-
-	-- Дорожка-подложка в самом центре (виден только хвост)
-	local rail = new("Frame", {
-		AnchorPoint = Vector2.new(0, 0.5),
-		Position = UDim2.new(0, 0, 0.5, 0),
-		Size = UDim2.new(1, 0, 0, 3),
-		BackgroundColor3 = C.outline,
-		BackgroundTransparency = 0.5,
-		BorderSizePixel = 0,
-		Parent = track,
-	})
-	corner(rail, FULL)
 
 	-- Контейнер для точек змеи
 	local waveHolder = new("Frame", {
