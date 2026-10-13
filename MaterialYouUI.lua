@@ -840,24 +840,25 @@ function Container:AddSlider(o)
 	local ring = new("UIStroke", { Thickness = 4, Parent = handle })
 	win:Bind(ring, "Color", self.rowRole)
 
-	local bubble = new("CanvasGroup", {
+		local bubble = new("Frame", {
 		AnchorPoint = Vector2.new(.5, 1),
-		Position = UDim2.new(0, 0, 0, -4),
-		Size = UDim2.fromOffset(52, 28),
-		GroupTransparency = 1,
+		Position = UDim2.new(0, 0, 0, -6),
+		Size = UDim2.fromOffset(56, 26),
+		BackgroundColor3 = Color3.fromRGB(235, 232, 240),
+		BackgroundTransparency = 0,
 		BorderSizePixel = 0,
+		Visible = false,
 		Parent = area,
 	})
-	corner(bubble, 14)
-	win:Bind(bubble, "BackgroundColor3", "inverseSurface")
+	corner(bubble, 13)
 	local bubbleLbl = text({
 		Font = Enum.Font.GothamBold,
 		TextSize = 13,
 		TextXAlignment = Enum.TextXAlignment.Center,
 		Size = UDim2.fromScale(1, 1),
+		TextColor3 = Color3.fromRGB(28, 27, 32),
 		Parent = bubble,
 	})
-	win:Bind(bubbleLbl, "TextColor3", "inverseOnSurface")
 
 	local function fmt(v)
 		return tostring(math.floor(v * 1000 + .5) / 1000)
@@ -936,13 +937,13 @@ function Container:AddSlider(o)
 	end
 	local function release()
 		dragging = false
-		tween(bubble, .2, { GroupTransparency = 1 })
+				bubble.Visible = false
 		tween(handle, .25, { Size = UDim2.fromOffset(18, 18) }, Back)
 	end
 	area.InputBegan:Connect(function(i)
 		if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
 			dragging = true
-			tween(bubble, .15, { GroupTransparency = 0 })
+						bubble.Visible = true
 			tween(handle, .2, { Size = UDim2.fromOffset(22, 22) }, Back)
 			fromInput(i.Position)
 		end
@@ -1242,6 +1243,209 @@ function Container:AddInput(o)
 	function obj.Set(_, v)
 		tb.Text = v
 	end
+	return obj
+end
+
+-- ============================================================
+--  Color Picker
+-- ============================================================
+function Container:AddColorpicker(o)
+	local win = self.win
+	local row = makeRow(self, o, 60)
+	local color = o.Default or Color3.fromRGB(208, 188, 255)
+
+	local swatch = new("Frame", {
+		AnchorPoint = Vector2.new(1, .5),
+		Position = UDim2.new(1, -16, .5, 0),
+		Size = UDim2.fromOffset(48, 28),
+		BackgroundColor3 = color,
+		BorderSizePixel = 0,
+		Parent = row,
+	})
+	corner(swatch, 12)
+	local swatchStroke = new("UIStroke", { Thickness = 1, Parent = swatch })
+	win:Bind(swatchStroke, "Color", "outlineVariant")
+
+	local btn = new("TextButton", {
+		Text = "",
+		AutoButtonColor = false,
+		BackgroundTransparency = 1,
+		AnchorPoint = Vector2.new(1, .5),
+		Position = UDim2.new(1, -16, .5, 0),
+		Size = UDim2.fromOffset(48, 28),
+		Parent = row,
+	})
+
+	local obj = { Row = row }
+	local h, s, v = color:ToHSV()
+
+	function obj.Set(_, c, silent)
+		color = c
+		swatch.BackgroundColor3 = c
+		h, s, v = c:ToHSV()
+		if not silent and o.Callback then
+			task.spawn(o.Callback, c)
+		end
+	end
+	function obj.Get()
+		return color
+	end
+
+	local function open()
+		win:_closePopup()
+		local overlay = win.Overlay
+		overlay.Visible = true
+		local catcher = new("TextButton", {
+			Text = "",
+			BackgroundTransparency = 1,
+			Size = UDim2.fromScale(1, 1),
+			ZIndex = 60,
+			Parent = overlay,
+		})
+		local pos = btn.AbsolutePosition - overlay.AbsolutePosition
+		local w = 240
+		local popup = new("CanvasGroup", {
+			Position = UDim2.fromOffset(pos.X + btn.AbsoluteSize.X - w, pos.Y + btn.AbsoluteSize.Y + 6),
+			Size = UDim2.fromOffset(w, 110),
+			GroupTransparency = 1,
+			BorderSizePixel = 0,
+			ZIndex = 61,
+			Parent = overlay,
+		})
+		corner(popup, 18)
+		win:Bind(popup, "BackgroundColor3", "surfaceContainerHighest")
+		local ps = new("UIStroke", { Thickness = 1, Parent = popup })
+		win:Bind(ps, "Color", "outlineVariant")
+		pad(popup, 14, 14, 14, 14)
+
+		local hTrack = new("Frame", {
+			Size = UDim2.new(1, 0, 0, 12),
+			BackgroundColor3 = Color3.new(1, 1, 1),
+			BorderSizePixel = 0,
+			Parent = popup,
+		})
+		corner(hTrack, FULL)
+		new("UIGradient", {
+			Color = ColorSequence.new({
+				ColorSequenceKeypoint.new(0.00, Color3.fromRGB(255, 0, 0)),
+				ColorSequenceKeypoint.new(0.17, Color3.fromRGB(255, 255, 0)),
+				ColorSequenceKeypoint.new(0.33, Color3.fromRGB(0, 255, 0)),
+				ColorSequenceKeypoint.new(0.50, Color3.fromRGB(0, 255, 255)),
+				ColorSequenceKeypoint.new(0.67, Color3.fromRGB(0, 0, 255)),
+				ColorSequenceKeypoint.new(0.83, Color3.fromRGB(255, 0, 255)),
+				ColorSequenceKeypoint.new(1.00, Color3.fromRGB(255, 0, 0)),
+			}),
+			Parent = hTrack,
+		})
+		local hThumb = new("Frame", {
+			AnchorPoint = Vector2.new(.5, .5),
+			Size = UDim2.fromOffset(16, 16),
+			BackgroundColor3 = Color3.new(1, 1, 1),
+			BorderSizePixel = 0,
+			Parent = hTrack,
+		})
+		corner(hThumb, FULL)
+		local hThumbStroke = new("UIStroke", { Thickness = 2, Color = Color3.fromRGB(255, 255, 255), Parent = hThumb })
+		win:Bind(hThumbStroke, "Color", "onSurface")
+
+		local hexBox = new("Frame", {
+			Position = UDim2.fromOffset(0, 46),
+			Size = UDim2.new(1, 0, 0, 34),
+			BorderSizePixel = 0,
+			Parent = popup,
+		})
+		corner(hexBox, 12)
+		win:Bind(hexBox, "BackgroundColor3", "surfaceContainer")
+		local hexStroke = new("UIStroke", { Thickness = 1, Parent = hexBox })
+		win:Bind(hexStroke, "Color", "outlineVariant")
+		local hexInput = new("TextBox", {
+			BackgroundTransparency = 1,
+			Position = UDim2.fromOffset(12, 0),
+			Size = UDim2.new(1, -24, 1, 0),
+			Font = Enum.Font.Code,
+			Text = string.format("#%02X%02X%02X",
+				math.floor(color.R * 255 + .5),
+				math.floor(color.G * 255 + .5),
+				math.floor(color.B * 255 + .5)),
+			TextSize = 13,
+			ClearTextOnFocus = false,
+			Parent = hexBox,
+		})
+		win:Bind(hexInput, "TextColor3", "onSurface")
+
+		local function applyColor(c, silent)
+			color = c
+			swatch.BackgroundColor3 = c
+			hThumb.Position = UDim2.new(select(1, c:ToHSV()), 0, .5, 0)
+			hexInput.Text = string.format("#%02X%02X%02X",
+				math.floor(c.R * 255 + .5),
+				math.floor(c.G * 255 + .5),
+				math.floor(c.B * 255 + .5))
+			if not silent and o.Callback then
+				task.spawn(o.Callback, c)
+			end
+		end
+
+		hThumb.Position = UDim2.new(select(1, color:ToHSV()), 0, .5, 0)
+
+		local draggingH = false
+		local function updateHue(i)
+			local rel = math.clamp((i.Position.X - hTrack.AbsolutePosition.X) / math.max(hTrack.AbsoluteSize.X, 1), 0, 1)
+			local _, ss, vv = color:ToHSV()
+			applyColor(Color3.fromHSV(rel, ss > 0 and ss or 1, vv > 0 and vv or 1))
+		end
+		hTrack.InputBegan:Connect(function(i)
+			if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
+				draggingH = true
+				updateHue(i)
+			end
+		end)
+		win:Connect(UserInputService.InputChanged, function(i)
+			if draggingH and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then
+				updateHue(i)
+			end
+		end)
+		win:Connect(UserInputService.InputEnded, function(i)
+			if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
+				draggingH = false
+			end
+		end)
+
+		hexInput.FocusLost:Connect(function()
+			local s2 = hexInput.Text:gsub("#", ""):gsub("%s", "")
+			if #s2 == 6 then
+				local r2 = tonumber(s2:sub(1, 2), 16)
+				local g2 = tonumber(s2:sub(3, 4), 16)
+				local b2 = tonumber(s2:sub(5, 6), 16)
+				if r2 and g2 and b2 then
+					applyColor(Color3.fromRGB(r2, g2, b2))
+				end
+			end
+		end)
+
+		tween(popup, .22, { GroupTransparency = 0 })
+
+		local closed = false
+		local function close()
+			if closed then return end
+			closed = true
+			local tw = tween(popup, .15, { GroupTransparency = 1 })
+			catcher:Destroy()
+			overlay.Active = false
+			tw.Completed:Once(function()
+				popup:Destroy()
+				if not win._popupClose then
+					overlay.Visible = false
+				end
+			end)
+		end
+		win._popupClose = close
+		catcher.MouseButton1Click:Connect(function()
+			win:_closePopup()
+		end)
+	end
+	btn.MouseButton1Click:Connect(open)
+
 	return obj
 end
 
