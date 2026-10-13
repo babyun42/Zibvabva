@@ -1618,7 +1618,9 @@ function Container:AddColorpicker(o)
 		if y < 8 then y = 8 end
 
 				-- popup = CanvasGroup → закрытие анимирует ВСЁ одной группой
-		local popup = new("CanvasGroup", {
+				-- ============ Popup root ============
+		-- CanvasGroup — только для плавного fade при закрытии
+		local popupRoot = new("CanvasGroup", {
 			Position = UDim2.fromOffset(x, y),
 			Size = UDim2.fromOffset(POP_W, POP_H),
 			GroupTransparency = 1,
@@ -1627,20 +1629,30 @@ function Container:AddColorpicker(o)
 			Parent = overlay,
 		})
 
-		-- визуальный фон попапа
-		local popupBg = new("Frame", {
+		-- Frame с фоном, скруглением и ClipsDescendants — гарантирует круглые углы
+		local popup = new("Frame", {
 			Size = UDim2.fromScale(1, 1),
 			BackgroundColor3 = win.Colors.surfaceContainerHighest,
 			BorderSizePixel = 0,
-			ZIndex = 1,
+			ClipsDescendants = true,
+			Parent = popupRoot,
+		})
+		corner(popup, 20)
+
+		-- Обводка — отдельный Frame ВНУТРИ клипа с тем же радиусом,
+		-- так UIStroke идёт по скруглённому контуру
+		local outline = new("Frame", {
+			Size = UDim2.fromScale(1, 1),
+			BackgroundTransparency = 1,
+			BorderSizePixel = 0,
+			ZIndex = 3,
 			Parent = popup,
 		})
-		corner(popupBg, 20)
-		local ps = new("UIStroke", { Thickness = 1, Parent = popupBg })
+		corner(outline, 20)
+		local ps = new("UIStroke", { Thickness = 1, Parent = outline })
 		win:Bind(ps, "Color", "outlineVariant")
 
-		-- FIX: прозрачный блокер-«съедатель» кликов.
-		-- Клик по пустому месту попапа не проходит в catcher → попап не закрывается.
+		-- Блокер кликов — прозрачный TextButton на весь попап
 		local bgBlocker = new("TextButton", {
 			Size = UDim2.fromScale(1, 1),
 			BackgroundTransparency = 1,
@@ -1650,7 +1662,7 @@ function Container:AddColorpicker(o)
 			Parent = popup,
 		})
 
-		tween(popup, .22, { GroupTransparency = 0 })
+		tween(popupRoot, .22, { GroupTransparency = 0 })
 
 		-- ============ SV-квадрат ============
 		-- FIX: каждый градиент-фрейм имеет свой UICorner с тем же радиусом,
@@ -1959,12 +1971,12 @@ function Container:AddColorpicker(o)
 		local function close()
 			if closed then return end
 			closed = true
-			-- одна группа → весь попап (фон + все элементы) исчезает одновременно
-			tween(popup, .15, { GroupTransparency = 1 })
+			-- одно свойство — весь попап исчезает одновременно
+			tween(popupRoot, .15, { GroupTransparency = 1 })
 			catcher:Destroy()
 			overlay.Active = false
 			task.delay(.18, function()
-				popup:Destroy()
+				popupRoot:Destroy()
 				if not win._popupClose then
 					overlay.Visible = false
 				end
