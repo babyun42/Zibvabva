@@ -1465,6 +1465,17 @@ function Container:AddFolder(o)
 	corner(card, 16)
 	win:Bind(card, "BackgroundColor3", self.rowRole)
 
+	-- FIX: hover-слой теперь лежит на ВСЕЙ карточке, а не внутри header
+	local cardLayer = new("Frame", {
+		Size = UDim2.fromScale(1, 1),
+		BackgroundTransparency = 1,
+		BorderSizePixel = 0,
+		ZIndex = 0,
+		Parent = card,
+	})
+	corner(cardLayer, 16)
+	win:Bind(cardLayer, "BackgroundColor3", "onSurface")
+
 	local header = new("TextButton", {
 		Text = "",
 		AutoButtonColor = false,
@@ -1472,18 +1483,13 @@ function Container:AddFolder(o)
 		Size = UDim2.new(1, 0, 0, HEADER),
 		Parent = card,
 	})
-	local layer = new("Frame", {
-		Size = UDim2.fromScale(1, 1),
-		BackgroundTransparency = 1,
-		BorderSizePixel = 0,
-		Parent = header,
-	})
-	win:Bind(layer, "BackgroundColor3", "onSurface")
+
+	-- ховер запускаем от header, но меняем прозрачность cardLayer
 	header.MouseEnter:Connect(function()
-		tween(layer, .15, { BackgroundTransparency = .94 })
+		tween(cardLayer, .15, { BackgroundTransparency = .94 })
 	end)
 	header.MouseLeave:Connect(function()
-		tween(layer, .2, { BackgroundTransparency = 1 })
+		tween(cardLayer, .2, { BackgroundTransparency = 1 })
 	end)
 
 	local hasDesc = o.Description ~= nil and o.Description ~= ""
@@ -1724,12 +1730,13 @@ function Container:AddESPPreview(o)
 	local boxHitLeft   = hitZone(10)
 	local boxHitRight  = hitZone(10)
 	local boxHitBottom = hitZone(10)
-	local hpLeftHit  = hitZone(11)
-	local hpRightHit = hitZone(11)
-	local hpTopHit   = hitZone(11)
 	local tracerHit  = hitZone(11)
 	local headDotHit = hitZone(12)
 	local nameTagHit = hitZone(12)
+	-- HP picker должен быть ВЫШЕ nameTag, чтобы клик по верхней стороне ловился
+	local hpLeftHit  = hitZone(14)
+	local hpRightHit = hitZone(14)
+	local hpTopHit   = hitZone(14)
 
 	-- === State ===
 	local state = {
@@ -1752,13 +1759,18 @@ function Container:AddESPPreview(o)
 
 	local function isOn(key) return state.enabled and state[key] end
 
+	-- FIX: в OnToggle уходят ключи в PascalCase, как ждёт главный скрипт
+	local KEY_MAP = {
+		boxes = "Boxes", tracers = "Tracers",
+		headDot = "HeadDot", healthBar = "HealthBar", nameTag = "NameTag",
+	}
 	local function toggleKey(key)
 		if not state.enabled then
 			state.enabled = true
 			if o.OnToggle then o.OnToggle("Enabled", true) end
 		end
 		state[key] = not state[key]
-		if o.OnToggle then o.OnToggle(key, state[key]) end
+		if o.OnToggle then o.OnToggle(KEY_MAP[key] or key, state[key]) end
 	end
 
 	masterHit.MouseButton1Click:Connect(function()
