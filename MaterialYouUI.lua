@@ -1889,7 +1889,6 @@ function Container:AddESPPreview(o)
 
 	local function isOn(key) return state.enabled and state[key] end
 
-	-- FIX: в OnToggle уходят ключи в PascalCase, как ждёт главный скрипт
 	local KEY_MAP = {
 		boxes = "Boxes", tracers = "Tracers",
 		headDot = "HeadDot", healthBar = "HealthBar", nameTag = "NameTag",
