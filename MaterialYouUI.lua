@@ -172,6 +172,35 @@ UI.Themes = {
 }
 UI.ThemeOrder = { "Dark", "Light", "Ocean", "Rose", "Forest", "Sunset", "Lavender" }
 
+-- ============================================================
+--  Сохранение выбранной темы
+-- ============================================================
+local THEME_FILE = "MaterialYouUI_theme.txt"
+
+local function isFsAvailable()
+	return type(writefile) == "function"
+		and type(readfile) == "function"
+		and type(isfile) == "function"
+end
+
+local function loadSavedTheme()
+	if not isFsAvailable() then return nil end
+	local ok, data = pcall(function()
+		if isfile(THEME_FILE) then
+			return readfile(THEME_FILE)
+		end
+	end)
+	if ok and data and data ~= "" then
+		return (data:gsub("%s+", ""))
+	end
+	return nil
+end
+
+local function saveThemeName(name)
+	if not isFsAvailable() then return end
+	pcall(function() writefile(THEME_FILE, name) end)
+end
+
 function UI:AddTheme(name, seedColor, isDark)
 	if not UI.Themes[name] then
 		table.insert(UI.ThemeOrder, name)
@@ -535,12 +564,11 @@ end
 
 function Window:SetTheme(name)
 	local t = UI.Themes[name]
-	if not t then
-		return
-	end
+	if not t then return end
 	self.ThemeName = name
 	self.Colors = buildScheme(t)
 	self:_refresh(true)
+	saveThemeName(name)
 end
 
 function Window:SetToggleKey(key)
@@ -2452,26 +2480,98 @@ local function playIntro(win, onDone)
 	})
 	status.TextColor3 = C.onSurfaceVariant
 
+		-- ===== Snake loading bar =====
+	local TRACK_W, TRACK_H = 280, 10
 	local track = new("Frame", {
 		AnchorPoint = Vector2.new(.5, 0),
-		Position = UDim2.new(.5, 0, 0, 250),
-		Size = UDim2.fromOffset(280, 6),
+		Position = UDim2.new(.5, 0, 0, 248),
+		Size = UDim2.fromOffset(TRACK_W, TRACK_H),
 		BackgroundColor3 = C.secondaryContainer,
 		BorderSizePixel = 0,
 		Parent = card,
 	})
 	corner(track, FULL)
-	local bar = new("Frame", {
-		Size = UDim2.new(0, 0, 1, 0),
-		BackgroundColor3 = C.primary,
+
+	-- Дорожка-подложка в самом центре (виден только хвост)
+	local rail = new("Frame", {
+		AnchorPoint = Vector2.new(0, 0.5),
+		Position = UDim2.new(0, 0, 0.5, 0),
+		Size = UDim2.new(1, 0, 0, 3),
+		BackgroundColor3 = C.outline,
+		BackgroundTransparency = 0.5,
 		BorderSizePixel = 0,
 		Parent = track,
 	})
-	corner(bar, FULL)
+	corner(rail, FULL)
+
+	-- Контейнер для точек змеи
+	local waveHolder = new("Frame", {
+		BackgroundTransparency = 1,
+		Size = UDim2.fromScale(1, 1),
+		Parent = track,
+	})
+
+	local DOT   = 6        -- диаметр точки
+	local STEP  = 3        -- шаг между точками
+	local WAVE  = 22       -- длина волны в px
+	local AMP   = 4        -- амплитуда
+	local SPD   = 6        -- скорость фазы (рад/с)
+
+	local waveDots = {}
+	local function waveDot(i)
+		local d = waveDots[i]
+		if not d then
+			d = new("Frame", {
+				AnchorPoint = Vector2.new(.5, .5),
+				Size = UDim2.fromOffset(DOT, DOT),
+				BackgroundColor3 = C.primary,
+				BorderSizePixel = 0,
+				Visible = false,
+				Parent = waveHolder,
+			})
+			corner(d, FULL)
+			waveDots[i] = d
+		end
+		return d
+	end
 
 	local swaps = win.IntroSwaps
 	local totalTime = 2.6 + (swaps + 1) * .75
-	tween(bar, totalTime, { Size = UDim2.new(1, 0, 1, 0) }, Enum.EasingStyle.Sine, InOut)
+	local startTime = tick()
+	local phase = 0
+	local shownDots = 0
+
+	local barConn = RunService.RenderStepped:Connect(function(dt)
+		local elapsed = tick() - startTime
+		local progress = math.clamp(elapsed / totalTime, 0, 1)
+		phase = (phase + dt * SPD) % (math.pi * 2)
+
+		-- Плавный ease-in-out прогресс
+		local p = progress < 0.5
+			and (2 * progress * progress)
+			or (1 - (-2 * progress + 2) ^ 2 / 2)
+
+		local headX = p * TRACK_W
+		local n = headX > 0 and (math.floor(headX / STEP) + 1) or 0
+		local k = (math.pi * 2) / WAVE
+
+		for i = 1, n do
+			local x = (i - 1) * STEP
+			-- Затухание волны у самой головы
+			local t = math.clamp((headX - x) / 16, 0, 1)
+			t = t * t * (3 - 2 * t)
+			local d = waveDot(i)
+			d.Position = UDim2.fromOffset(x + DOT / 2, TRACK_H / 2 + AMP * t * math.sin(x * k - phase))
+			if i > shownDots then
+				d.Visible = true
+			end
+		end
+		for i = n + 1, shownDots do
+			waveDots[i].Visible = false
+		end
+		shownDots = n
+	end)
+	table.insert(win._conns, barConn)
 
 	local target = math.random(12, N - 3)
 	local finalX = VIEW_W / 2 - items[target].X
@@ -2564,6 +2664,7 @@ local function playIntro(win, onDone)
 		return
 	end
 
+	if barConn then barConn:Disconnect() end
 	tween(sc, .4, { Scale = 1.08 })
 	tween(card, .35, { GroupTransparency = 1 })
 	local t = tween(scrim, .4, { BackgroundTransparency = 1 })
@@ -2588,7 +2689,12 @@ function UI:CreateWindow(o)
 	win.LogoShape = o.LogoShape or "Flower"
 	win.IntroText = o.IntroText or "Loading interface..."
 	win.IntroSwaps = o.IntroSwaps or 3
-	win.ThemeName = UI.Themes[o.Theme or "Dark"] and (o.Theme or "Dark") or "Dark"
+		-- NEW: сначала пробуем загрузить сохранённую тему, потом опцию, потом Dark
+	local savedTheme = loadSavedTheme()
+	local initialTheme = (savedTheme and UI.Themes[savedTheme] and savedTheme)
+		or (o.Theme and UI.Themes[o.Theme] and o.Theme)
+		or "Dark"
+	win.ThemeName = initialTheme
 	win.Colors = buildScheme(UI.Themes[win.ThemeName])
 	local C = win.Colors
 
