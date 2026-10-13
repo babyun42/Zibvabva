@@ -1620,6 +1620,7 @@ function Container:AddColorpicker(o)
 		local popupRoot = new("CanvasGroup", {
 			Position = UDim2.fromOffset(x, y),
 			Size = UDim2.fromOffset(POP_W, POP_H),
+			BackgroundTransparency = 1,
 			GroupTransparency = 1,
 			BorderSizePixel = 0,
 			ZIndex = 61,
