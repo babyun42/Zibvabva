@@ -12,11 +12,16 @@
 	Использование: см. example.lua
 ]]
 
+UI.HoverAlpha = 0.975  -- 0..1, больше = слабее
+
+tween(layer, .15, { BackgroundTransparency = UI.HoverAlpha })
+
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
 local Players = game:GetService("Players")
 local GuiService = game:GetService("GuiService")
+local SoundService = game:GetService("SoundService")
 
 local UI = {}
 local Window = {}
@@ -386,6 +391,45 @@ end
 
 UI.RippleOffset = Vector2.zero
 
+-- ============================================================
+--  Click sound — общий Sound для всех кликов
+-- ============================================================
+UI.SoundEnabled = true
+UI.SoundVolume  = 0.35
+-- можно заменить на свой rbxassetid://...
+UI.ClickSoundId = "rbxassetid://6895079853"
+
+local clickSound = new("Sound", {
+	Name = "MaterialUIClick",
+	SoundId = UI.ClickSoundId,
+	Volume = UI.SoundVolume,
+	PlaybackSpeed = 1,
+	Parent = SoundService,
+})
+
+function UI:SetClickSound(id, volume)
+	if id then UI.ClickSoundId = id; clickSound.SoundId = id end
+	if volume then UI.SoundVolume = volume; clickSound.Volume = volume end
+end
+
+local function playClick(pitch)
+	if not UI.SoundEnabled then return end
+	local s = clickSound:Clone()
+	s.PlaybackSpeed = pitch or 1
+	s.Volume = UI.SoundVolume
+	s.Parent = SoundService
+	s:Play()
+	s.Ended:Once(function() s:Destroy() end)
+	task.delay(1, function() if s.Parent then s:Destroy() end end)
+end
+
+-- helper: подключает клик к любой кнопке
+local function hookClick(btn)
+	btn.MouseButton1Down:Connect(function()
+		playClick(1)
+	end)
+end
+
 local function pointerIn(host)
 	local size = host.AbsoluteSize
 	local rel = UserInputService:GetMouseLocation() - host.AbsolutePosition + UI.RippleOffset
@@ -561,7 +605,7 @@ local function makeRow(self, o, rightW, height, forceTop)
 		Parent = row,
 	})
 	hit.MouseEnter:Connect(function()
-		tween(layer, .15, { BackgroundTransparency = .94 })
+		tween(layer, .15, { BackgroundTransparency = .975 })
 	end)
 	hit.MouseLeave:Connect(function()
 		tween(layer, .2, { BackgroundTransparency = 1 })
@@ -695,6 +739,7 @@ function Container:AddToggle(o)
 	hit.MouseButton1Click:Connect(function()
 		obj:Set(not state)
 	end)
+	hookClick(hit)
 	if o.Default and o.Callback and o.CallOnInit then
 		task.spawn(o.Callback, state)
 	end
@@ -739,6 +784,7 @@ function Container:AddButton(o)
 			task.spawn(o.Callback)
 		end
 	end)
+	hookClick(hit)
 	return { Row = row }
 end
 
@@ -942,6 +988,7 @@ function Container:AddSlider(o)
 	end
 	area.InputBegan:Connect(function(i)
 		if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
+		    playClick(1.1)
 			dragging = true
 						bubble.Visible = true
 			tween(handle, .2, { Size = UDim2.fromOffset(22, 22) }, Back)
@@ -1071,7 +1118,7 @@ function Container:AddDropdown(o)
 			win:Bind(tl, "TextColor3", sel and "onSecondaryContainer" or "onSurface")
 			if not sel then
 				it.MouseEnter:Connect(function()
-					tween(it, .12, { BackgroundTransparency = .92 })
+					tween(it, .12, { BackgroundTransparency = .965 })
 				end)
 				it.MouseLeave:Connect(function()
 					tween(it, .15, { BackgroundTransparency = 1 })
@@ -1107,7 +1154,10 @@ function Container:AddDropdown(o)
 			win:_closePopup()
 		end)
 	end
-	btn.MouseButton1Click:Connect(open)
+	btn.MouseButton1Click:Connect(function()
+		playClick(0.95)
+		open()
+	end)
 	return obj
 end
 
@@ -1156,6 +1206,7 @@ function Container:AddKeybind(o)
 	end
 
 	btn.MouseButton1Click:Connect(function()
+		playClick(1.05)
 		listening = true
 		win._listening = true
 		render(true)
@@ -1486,7 +1537,7 @@ function Container:AddFolder(o)
 
 	-- ховер запускаем от header, но меняем прозрачность cardLayer
 	header.MouseEnter:Connect(function()
-		tween(cardLayer, .15, { BackgroundTransparency = .94 })
+		tween(cardLayer, .15, { BackgroundTransparency = .975 })
 	end)
 	header.MouseLeave:Connect(function()
 		tween(cardLayer, .2, { BackgroundTransparency = 1 })
@@ -1588,6 +1639,7 @@ function Container:AddFolder(o)
 		ripple(card, win.Colors.onSurface)
 	end)
 	header.MouseButton1Click:Connect(function()
+		playClick(0.9)
 		c:SetOpen(not open)
 	end)
 	if o.Open then
@@ -1774,11 +1826,16 @@ function Container:AddESPPreview(o)
 	end
 
 	masterHit.MouseButton1Click:Connect(function()
+		playClick(1)
 		state.enabled = not state.enabled
 		if o.OnToggle then o.OnToggle("Enabled", state.enabled) end
 	end)
 
 	local function bindBoxToggle(z)
+	    z.MouseButton1Click:Connect(function()
+			playClick(1)
+			toggleKey("boxes")
+		end)
 		z.MouseButton1Click:Connect(function() toggleKey("boxes") end)
 		z.MouseEnter:Connect(function() hover.boxes = true end)
 		z.MouseLeave:Connect(function() hover.boxes = false end)
@@ -1788,15 +1845,15 @@ function Container:AddESPPreview(o)
 	bindBoxToggle(boxHitRight)
 	bindBoxToggle(boxHitBottom)
 
-	tracerHit.MouseButton1Click:Connect(function() toggleKey("tracers") end)
+    tracerHit.MouseButton1Click:Connect(function() playClick(1); toggleKey("tracers") end)
 	tracerHit.MouseEnter:Connect(function() hover.tracers = true end)
 	tracerHit.MouseLeave:Connect(function() hover.tracers = false end)
 
-	headDotHit.MouseButton1Click:Connect(function() toggleKey("headDot") end)
+	headDotHit.MouseButton1Click:Connect(function() playClick(1); toggleKey("headDot") end)
 	headDotHit.MouseEnter:Connect(function() hover.headDot = true end)
 	headDotHit.MouseLeave:Connect(function() hover.headDot = false end)
 
-	nameTagHit.MouseButton1Click:Connect(function() toggleKey("nameTag") end)
+	nameTagHit.MouseButton1Click:Connect(function() playClick(1); toggleKey("nameTag") end)
 	nameTagHit.MouseEnter:Connect(function() hover.nameTag = true end)
 	nameTagHit.MouseLeave:Connect(function() hover.nameTag = false end)
 
@@ -1814,9 +1871,9 @@ function Container:AddESPPreview(o)
 			toggleKey("healthBar")
 		end
 	end
-	hpLeftHit.MouseButton1Click:Connect(function() clickHP("Left") end)
-	hpRightHit.MouseButton1Click:Connect(function() clickHP("Right") end)
-	hpTopHit.MouseButton1Click:Connect(function() clickHP("Top") end)
+	hpLeftHit.MouseButton1Click:Connect(function() playClick(1); clickHP("Left") end)
+	hpRightHit.MouseButton1Click:Connect(function() playClick(1); clickHP("Right") end)
+	hpTopHit.MouseButton1Click:Connect(function() playClick(1); clickHP("Top") end)
 
 	for _, z in ipairs({ hpLeftHit, hpRightHit, hpTopHit }) do
 		z.MouseEnter:Connect(function() hover.healthBar = true end)
@@ -1987,7 +2044,7 @@ local function iconButton(win, parent, kind, order, fn)
 	corner(b, FULL)
 	win:Bind(b, "BackgroundColor3", "onSurface")
 	b.MouseEnter:Connect(function()
-		tween(b, .15, { BackgroundTransparency = .9 })
+		tween(b, .15, { BackgroundTransparency = .965 })
 	end)
 	b.MouseLeave:Connect(function()
 		tween(b, .2, { BackgroundTransparency = 1 })
@@ -2175,6 +2232,7 @@ function Window:Notify(o)
 	end
 	toast.InputBegan:Connect(function(i)
 		if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
+			playClick(0.85)
 			dismiss()
 		end
 	end)
@@ -2292,7 +2350,7 @@ function Window:AddTab(o)
 
 	hit.MouseEnter:Connect(function()
 		if win._current ~= tab then
-			tween(btn, .15, { BackgroundTransparency = .65 })
+			tween(btn, .15, { BackgroundTransparency = .82 })
 		end
 	end)
 	hit.MouseLeave:Connect(function()
@@ -2304,6 +2362,7 @@ function Window:AddTab(o)
 		ripple(btn, win.Colors.onSecondaryContainer)
 	end)
 	hit.MouseButton1Click:Connect(function()
+		playClick(1)
 		win:_select(tab)
 	end)
 
