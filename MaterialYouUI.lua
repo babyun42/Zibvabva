@@ -672,10 +672,8 @@ function Window:SetTheme(name)
 	saveThemeName(name)
 end
 
--- NEW: тема из любого цвета
 function Window:SetThemeFromColor(color, isDark)
 	if isDark == nil then
-		-- если не указано — берём текущий режим
 		local c = self.Colors.surface
 		isDark = (c.R + c.G + c.B) < 1.5
 	end
@@ -684,7 +682,19 @@ function Window:SetThemeFromColor(color, isDark)
 	self.CustomThemeDark = isDark
 	self.Colors = buildScheme({ seed = color, dark = isDark })
 	self:_refresh(true)
-	saveCustomTheme(color, isDark)
+
+	_G.__MaterialYouUI_CustomColor = color
+	_G.__MaterialYouUI_CustomDark = isDark
+	if type(writefile) == "function" then
+		pcall(function()
+			writefile("MaterialYouUI_customcolor.txt",
+				string.format("%d,%d,%d,%s",
+					math.floor(color.R * 255 + 0.5),
+					math.floor(color.G * 255 + 0.5),
+					math.floor(color.B * 255 + 0.5),
+					isDark and "1" or "0"))
+		end)
+	end
 end
 
 function Window:SetCustomThemeDark(isDark)
@@ -1440,10 +1450,6 @@ function Container:AddInput(o)
 	end
 	return obj
 end
-
--- ============================================================
---  Color Picker
--- ============================================================
 -- ============================================================
 --  Color Picker — SV-квадрат + hue-бар + hex + Apply/Cancel
 -- ============================================================
@@ -1490,6 +1496,15 @@ function Container:AddColorpicker(o)
 		win:_closePopup()
 		local overlay = win.Overlay
 		overlay.Visible = true
+
+		local SV_SIZE = 150
+		local HUE_W   = 14
+		local PAD     = 16
+		local RIGHT_W = 130
+		local POP_W   = PAD * 2 + SV_SIZE + 12 + HUE_W + 16 + RIGHT_W
+		local POP_H   = PAD * 2 + SV_SIZE
+
+		-- клик вне popup закрывает
 		local catcher = new("TextButton", {
 			Text = "",
 			BackgroundTransparency = 1,
@@ -1498,15 +1513,6 @@ function Container:AddColorpicker(o)
 			Parent = overlay,
 		})
 
-		-- размеры
-		local SV_SIZE    = 150
-		local HUE_W      = 14
-		local PAD        = 16
-		local RIGHT_W    = 130
-		local POP_W      = PAD * 2 + SV_SIZE + 12 + HUE_W + 16 + RIGHT_W
-		local POP_H      = PAD * 2 + SV_SIZE
-
-		-- позиция рядом с кнопкой (clamp к экрану)
 		local pos = btn.AbsolutePosition - overlay.AbsolutePosition
 		local x = pos.X + btn.AbsoluteSize.X - POP_W
 		local y = pos.Y + btn.AbsoluteSize.Y + 6
@@ -1532,23 +1538,34 @@ function Container:AddColorpicker(o)
 		local ps = new("UIStroke", { Thickness = 1, Parent = popup })
 		win:Bind(ps, "Color", "outlineVariant")
 
-		-- ============ SV квадрат ============
-		local sv = new("Frame", {
+		-- ============ SV-квадрат ============
+		-- FIX: обёртка с UICorner + ClipsDescendants + Active=true
+		-- 1) Active ловит клики до catcher'а (не даёт popup закрыться)
+		-- 2) ClipsDescendants обрезает градиенты по скруглённому контуру
+		local svWrap = new("Frame", {
 			Position = UDim2.fromOffset(PAD, PAD),
 			Size = UDim2.fromOffset(SV_SIZE, SV_SIZE),
-			BackgroundColor3 = color,
+			BackgroundColor3 = Color3.new(1, 1, 1),
 			BorderSizePixel = 0,
 			ClipsDescendants = true,
+			Active = true,
 			Parent = popup,
 		})
-		corner(sv, 12)
+		corner(svWrap, 12)
 
-		-- белый градиент (S: white → transparent, left → right)
-		local whiteOverlay = new("Frame", {
+		-- hue-подложка (за белым и чёрным градиентами)
+		local svHue = new("Frame", {
+			Size = UDim2.fromScale(1, 1),
+			BackgroundColor3 = color,
+			BorderSizePixel = 0,
+			Parent = svWrap,
+		})
+		-- белый горизонтальный градиент (S)
+		local whiteOv = new("Frame", {
 			Size = UDim2.fromScale(1, 1),
 			BackgroundColor3 = Color3.new(1, 1, 1),
 			BorderSizePixel = 0,
-			Parent = sv,
+			Parent = svWrap,
 		})
 		new("UIGradient", {
 			Rotation = 0,
@@ -1556,15 +1573,14 @@ function Container:AddColorpicker(o)
 				NumberSequenceKeypoint.new(0, 0),
 				NumberSequenceKeypoint.new(1, 1),
 			}),
-			Parent = whiteOverlay,
+			Parent = whiteOv,
 		})
-
-		-- чёрный градиент (V: transparent → black, top → bottom)
-		local blackOverlay = new("Frame", {
+		-- чёрный вертикальный градиент (V)
+		local blackOv = new("Frame", {
 			Size = UDim2.fromScale(1, 1),
 			BackgroundColor3 = Color3.new(0, 0, 0),
 			BorderSizePixel = 0,
-			Parent = sv,
+			Parent = svWrap,
 		})
 		new("UIGradient", {
 			Rotation = 90,
@@ -1572,31 +1588,40 @@ function Container:AddColorpicker(o)
 				NumberSequenceKeypoint.new(0, 1),
 				NumberSequenceKeypoint.new(1, 0),
 			}),
-			Parent = blackOverlay,
+			Parent = blackOv,
 		})
 
-		-- курсор SV
+		-- SV-курсор
 		local svCursor = new("Frame", {
 			Size = UDim2.fromOffset(14, 14),
 			AnchorPoint = Vector2.new(0.5, 0.5),
 			BackgroundColor3 = color,
 			BorderSizePixel = 0,
 			ZIndex = 5,
-			Parent = sv,
+			Parent = svWrap,
 		})
 		corner(svCursor, FULL)
 		new("UIStroke", { Thickness = 2, Color = Color3.new(1, 1, 1), Parent = svCursor })
 
-		-- ============ Hue-бар (вертикальный) ============
-		local hueBar = new("Frame", {
+		-- ============ Hue-бар ============
+		-- FIX: та же схема — обёртка + внутренний градиент
+		local hueWrap = new("Frame", {
 			Position = UDim2.fromOffset(PAD + SV_SIZE + 12, PAD),
 			Size = UDim2.fromOffset(HUE_W, SV_SIZE),
 			BackgroundColor3 = Color3.new(1, 1, 1),
 			BorderSizePixel = 0,
 			ClipsDescendants = true,
+			Active = true,
 			Parent = popup,
 		})
-		corner(hueBar, 7)
+		corner(hueWrap, 7)
+
+		local hueFill = new("Frame", {
+			Size = UDim2.fromScale(1, 1),
+			BackgroundColor3 = Color3.new(1, 1, 1),
+			BorderSizePixel = 0,
+			Parent = hueWrap,
+		})
 		new("UIGradient", {
 			Rotation = 90,
 			Color = ColorSequence.new({
@@ -1608,7 +1633,7 @@ function Container:AddColorpicker(o)
 				ColorSequenceKeypoint.new(0.83, Color3.fromRGB(255, 0, 255)),
 				ColorSequenceKeypoint.new(1.00, Color3.fromRGB(255, 0, 0)),
 			}),
-			Parent = hueBar,
+			Parent = hueFill,
 		})
 
 		local hueCursor = new("Frame", {
@@ -1617,15 +1642,14 @@ function Container:AddColorpicker(o)
 			BackgroundColor3 = Color3.new(1, 1, 1),
 			BorderSizePixel = 0,
 			ZIndex = 5,
-			Parent = hueBar,
+			Parent = hueWrap,
 		})
 		corner(hueCursor, 2)
 		new("UIStroke", { Thickness = 1.5, Color = Color3.new(0, 0, 0), Transparency = 0.4, Parent = hueCursor })
 
-		-- ============ Правая панель: hex + Apply/Cancel ============
+		-- ============ Правая панель ============
 		local rightX = PAD + SV_SIZE + 12 + HUE_W + 16
 
-		-- Превью-плашка
 		local previewSwatch = new("Frame", {
 			Position = UDim2.fromOffset(rightX, PAD),
 			Size = UDim2.fromOffset(RIGHT_W, 60),
@@ -1637,7 +1661,6 @@ function Container:AddColorpicker(o)
 		local pss = new("UIStroke", { Thickness = 1, Parent = previewSwatch })
 		win:Bind(pss, "Color", "outlineVariant")
 
-		-- Hex input
 		local hexBox = new("Frame", {
 			Position = UDim2.fromOffset(rightX, PAD + 74),
 			Size = UDim2.fromOffset(RIGHT_W, 34),
@@ -1662,13 +1685,13 @@ function Container:AddColorpicker(o)
 		})
 		win:Bind(hexInput, "TextColor3", "onSurface")
 
-		-- Кнопки Apply / Cancel (внизу правой панели)
 		local btnH = 36
 		local btnY = PAD + SV_SIZE - btnH
+		local halfW = (RIGHT_W - 6) / 2
 
 		local cancelBtn = new("TextButton", {
 			Position = UDim2.fromOffset(rightX, btnY),
-			Size = UDim2.fromOffset((RIGHT_W - 6) / 2, btnH),
+			Size = UDim2.fromOffset(halfW, btnH),
 			BackgroundTransparency = 1,
 			Text = "Cancel",
 			Font = Enum.Font.GothamMedium,
@@ -1681,8 +1704,8 @@ function Container:AddColorpicker(o)
 		win:Bind(cancelBtn, "TextColor3", "onSurface")
 
 		local applyBtn = new("TextButton", {
-			Position = UDim2.fromOffset(rightX + (RIGHT_W - 6) / 2 + 6, btnY),
-			Size = UDim2.fromOffset((RIGHT_W - 6) / 2, btnH),
+			Position = UDim2.fromOffset(rightX + halfW + 6, btnY),
+			Size = UDim2.fromOffset(halfW, btnH),
 			BorderSizePixel = 0,
 			Text = "Apply",
 			Font = Enum.Font.GothamBold,
@@ -1699,15 +1722,15 @@ function Container:AddColorpicker(o)
 		local previewColor = color
 
 		local function refreshUI()
-			sv.BackgroundColor3 = Color3.fromHSV(h, 1, 1)
+			svHue.BackgroundColor3 = Color3.fromHSV(h, 1, 1)
 			svCursor.Position = UDim2.new(s, 0, 1 - v, 0)
 			svCursor.BackgroundColor3 = previewColor
 			previewSwatch.BackgroundColor3 = previewColor
 			hueCursor.Position = UDim2.new(0.5, 0, h, 0)
-			local r = math.floor(previewColor.R * 255 + 0.5)
-			local g = math.floor(previewColor.G * 255 + 0.5)
-			local b = math.floor(previewColor.B * 255 + 0.5)
-			hexInput.Text = string.format("#%02X%02X%02X", r, g, b)
+			hexInput.Text = string.format("#%02X%02X%02X",
+				math.floor(previewColor.R * 255 + 0.5),
+				math.floor(previewColor.G * 255 + 0.5),
+				math.floor(previewColor.B * 255 + 0.5))
 		end
 
 		local function setHSV(nh, ns, nv)
@@ -1717,7 +1740,6 @@ function Container:AddColorpicker(o)
 			previewColor = Color3.fromHSV(h, s, v)
 			refreshUI()
 		end
-
 		local function setRGB(c)
 			previewColor = c
 			h, s, v = c:ToHSV()
@@ -1727,11 +1749,11 @@ function Container:AddColorpicker(o)
 		-- SV drag
 		local svDragging = false
 		local function svFromInput(i)
-			local relX = math.clamp((i.Position.X - sv.AbsolutePosition.X) / math.max(sv.AbsoluteSize.X, 1), 0, 1)
-			local relY = math.clamp((i.Position.Y - sv.AbsolutePosition.Y) / math.max(sv.AbsoluteSize.Y, 1), 0, 1)
+			local relX = math.clamp((i.Position.X - svWrap.AbsolutePosition.X) / math.max(svWrap.AbsoluteSize.X, 1), 0, 1)
+			local relY = math.clamp((i.Position.Y - svWrap.AbsolutePosition.Y) / math.max(svWrap.AbsoluteSize.Y, 1), 0, 1)
 			setHSV(h, relX, 1 - relY)
 		end
-		sv.InputBegan:Connect(function(i)
+		svWrap.InputBegan:Connect(function(i)
 			if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
 				svDragging = true
 				svFromInput(i)
@@ -1741,10 +1763,10 @@ function Container:AddColorpicker(o)
 		-- Hue drag
 		local hueDragging = false
 		local function hueFromInput(i)
-			local relY = math.clamp((i.Position.Y - hueBar.AbsolutePosition.Y) / math.max(hueBar.AbsoluteSize.Y, 1), 0, 1)
+			local relY = math.clamp((i.Position.Y - hueWrap.AbsolutePosition.Y) / math.max(hueWrap.AbsoluteSize.Y, 1), 0, 1)
 			setHSV(relY, s, v)
 		end
-		hueBar.InputBegan:Connect(function(i)
+		hueWrap.InputBegan:Connect(function(i)
 			if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
 				hueDragging = true
 				hueFromInput(i)
@@ -1765,21 +1787,17 @@ function Container:AddColorpicker(o)
 			end
 		end)
 
-		-- Hex input
 		hexInput.FocusLost:Connect(function()
 			local txt = hexInput.Text:gsub("#", ""):gsub("%s", "")
 			if #txt == 6 then
 				local r = tonumber(txt:sub(1, 2), 16)
 				local g = tonumber(txt:sub(3, 4), 16)
 				local b = tonumber(txt:sub(5, 6), 16)
-				if r and g and b then
-					setRGB(Color3.fromRGB(r, g, b))
-				end
+				if r and g and b then setRGB(Color3.fromRGB(r, g, b)) end
 			end
 			refreshUI()
 		end)
 
-		-- Apply / Cancel
 		applyBtn.MouseButton1Click:Connect(function()
 			obj:Set(previewColor)
 			win:_closePopup()
@@ -1800,9 +1818,7 @@ function Container:AddColorpicker(o)
 			overlay.Active = false
 			tw.Completed:Once(function()
 				popup:Destroy()
-				if not win._popupClose then
-					overlay.Visible = false
-				end
+				if not win._popupClose then overlay.Visible = false end
 			end)
 		end
 		win._popupClose = close
