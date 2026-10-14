@@ -1138,25 +1138,25 @@ function Container:AddSlider(o)
 	local ring = new("UIStroke", { Thickness = 4, Parent = handle })
 	win:Bind(ring, "Color", self.rowRole)
 
-		local bubble = new("Frame", {
+	local bubble = new("Frame", {
 		AnchorPoint = Vector2.new(.5, 1),
 		Position = UDim2.new(0, 0, 0, -6),
 		Size = UDim2.fromOffset(56, 26),
-		BackgroundColor3 = Color3.fromRGB(235, 232, 240),
-		BackgroundTransparency = 0,
 		BorderSizePixel = 0,
 		Visible = false,
 		Parent = area,
 	})
 	corner(bubble, 13)
+	win:Bind(bubble, "BackgroundColor3", "primaryContainer")
+
 	local bubbleLbl = text({
 		Font = Enum.Font.GothamBold,
 		TextSize = 13,
 		TextXAlignment = Enum.TextXAlignment.Center,
 		Size = UDim2.fromScale(1, 1),
-		TextColor3 = Color3.fromRGB(28, 27, 32),
 		Parent = bubble,
 	})
+	win:Bind(bubbleLbl, "TextColor3", "onPrimaryContainer")
 
 	local function fmt(v)
 		return tostring(math.floor(v * 1000 + .5) / 1000)
@@ -1493,15 +1493,15 @@ function Container:AddInput(o)
 	local rowH = hasDesc and 96 or 76
 	local row, hit, title = makeRow(self, o, 0, rowH, true)
 
-	local box = new("Frame", {
+		local box = new("Frame", {
 		Size = UDim2.new(1, -32, 0, 34),
 		Position = UDim2.new(0, 16, 1, -8),
 		AnchorPoint = Vector2.new(0, 1),
-		BackgroundColor3 = win.Colors.surfaceContainer,
 		BorderSizePixel = 0,
 		Parent = row,
 	})
 	corner(box, 12)
+	win:Bind(box, "BackgroundColor3", "surfaceContainer")
 	local boxStroke = new("UIStroke", { Thickness = 1, Parent = box })
 	win:Bind(boxStroke, "Color", "outlineVariant")
 
