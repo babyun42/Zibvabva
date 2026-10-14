@@ -2662,6 +2662,8 @@ function Window:Notify(o)
 
 	local iconBox = new("Frame", {
 		BackgroundTransparency = 1,
+		AnchorPoint = Vector2.new(0, 0.5),   -- ← центр по Y
+		Position = UDim2.new(0, 0, 0.5, 0),  -- ← прижат к 50% высоты тоста
 		Size = UDim2.fromOffset(24, 24),
 		Parent = toast,
 	})
