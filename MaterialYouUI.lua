@@ -181,15 +181,48 @@ UI.Themes = {
 UI.ThemeOrder = { "Dark", "Light", "Ocean", "Rose", "Forest", "Sunset", "Lavender" }
 
 -- ============================================================
---  Сохранение выбранной темы (всех executor'ов)
+--  Persistence (универсальная версия)
+--  Уровни: getgenv → _G → gethui/CoreGui → writefile
 -- ============================================================
 local PERSIST_FOLDER = "MaterialYouUI_Persist"
-local PERSIST_KEY    = "Theme"
 
--- безопасно получаем контейнер для хранения (gethui → CoreGui → PlayerGui)
+local function getGlobalEnv()
+	if type(getgenv) == "function" then
+		local ok, env = pcall(getgenv)
+		if ok and env then return env end
+	end
+	return _G
+end
+local GENV = getGlobalEnv()
+
+local function fsAvailable()
+	return (type(writefile) == "function")
+		and (type(readfile) == "function")
+		and (type(isfile) == "function")
+end
+
+local function fsWrite(path, data)
+	if type(writefile) == "function" then
+		return pcall(function() writefile(path, data) end)
+	end
+	return false
+end
+
+local function fsRead(path)
+	if fsAvailable() then
+		local ok, data = pcall(function()
+			if isfile(path) then
+				return readfile(path)
+			end
+		end)
+		if ok then return data end
+	end
+	return nil
+end
+
 local function getPersistHolder()
 	local candidates = {}
-	if gethui then
+	if type(gethui) == "function" then
 		pcall(function() table.insert(candidates, gethui()) end)
 	end
 	pcall(function() table.insert(candidates, game:GetService("CoreGui")) end)
@@ -211,144 +244,116 @@ local function getPersistHolder()
 	return nil
 end
 
-local function loadSavedTheme()
-	-- 1) _G — мгновенно
-	if _G.__MaterialYouUI_Theme then
-		return _G.__MaterialYouUI_Theme
-	end
-	-- 2) CoreGui / gethui StringValue
+local function setHolderValue(key, value)
 	local holder = getPersistHolder()
-	if holder then
-		local sv = holder:FindFirstChild(PERSIST_KEY)
-		if sv and sv:IsA("StringValue") and sv.Value ~= "" then
-			_G.__MaterialYouUI_Theme = sv.Value
-			return sv.Value
+	if not holder then return end
+	pcall(function()
+		local existing = holder:FindFirstChild(key)
+		local cls = typeof(value) == "Color3" and "Color3Value"
+			or typeof(value) == "boolean" and "BoolValue"
+			or "StringValue"
+		if existing and existing.ClassName ~= cls then
+			existing:Destroy()
+			existing = nil
 		end
-	end
-	-- 3) Файл — если executor умеет
-	if type(readfile) == "function" and type(isfile) == "function" then
-		local ok, data = pcall(function()
-			if isfile("MaterialYouUI_theme.txt") then
-				return readfile("MaterialYouUI_theme.txt")
-			end
-		end)
-		if ok and data and data ~= "" then
-			local name = data:gsub("%s+", "")
-			_G.__MaterialYouUI_Theme = name
-			return name
+		if not existing then
+			existing = Instance.new(cls)
+			existing.Name = key
+			existing.Parent = holder
 		end
+		existing.Value = value
+	end)
+end
+
+local function getHolderValue(key, cls)
+	local holder = getPersistHolder()
+	if not holder then return nil end
+	local v = holder:FindFirstChild(key)
+	if v and v.ClassName == cls then
+		return v.Value
 	end
 	return nil
 end
 
+-- ============== Theme name ==============
 local function saveThemeName(name)
-	-- 1) в _G
-	_G.__MaterialYouUI_Theme = name
-	-- 2) в CoreGui StringValue
-	local holder = getPersistHolder()
-	if holder then
-		pcall(function()
-			local sv = holder:FindFirstChild(PERSIST_KEY)
-			if not sv then
-				sv = Instance.new("StringValue")
-				sv.Name = PERSIST_KEY
-				sv.Parent = holder
-			end
-			sv.Value = name
-		end)
-	end
-	-- 3) в файл
-	if type(writefile) == "function" then
-		pcall(function() writefile("MaterialYouUI_theme.txt", name) end)
+	GENV.__MaterialYouUI_Theme = name
+	setHolderValue("ThemeName", name)
+	if fsAvailable() then
+		fsWrite("MaterialYouUI_theme.txt", name)
 	end
 end
 
--- ============================================================
---  Сохранение custom-цвета темы (Universal: _G + CoreGui + file)
--- ============================================================
-local CUSTOM_COLOR_KEY  = "CustomThemeColor"
-local CUSTOM_DARK_KEY   = "CustomThemeDark"
-
-local function saveCustomThemeRaw(color, isDark)
-	_G.__MaterialYouUI_CustomColor = color
-	_G.__MaterialYouUI_CustomDark  = isDark
-
-	local holder = getPersistHolder and getPersistHolder()
-	if holder then
-		pcall(function()
-			local cv = holder:FindFirstChild(CUSTOM_COLOR_KEY)
-			if not cv then
-				cv = Instance.new("Color3Value")
-				cv.Name = CUSTOM_COLOR_KEY
-				cv.Parent = holder
-			end
-			cv.Value = color
-
-			local dv = holder:FindFirstChild(CUSTOM_DARK_KEY)
-			if not dv then
-				dv = Instance.new("BoolValue")
-				dv.Name = CUSTOM_DARK_KEY
-				dv.Parent = holder
-			end
-			dv.Value = isDark
-		end)
+local function loadSavedTheme()
+	-- 1) getgenv / _G
+	if GENV.__MaterialYouUI_Theme then
+		return GENV.__MaterialYouUI_Theme
 	end
+	-- 2) gethui / CoreGui
+	local name = getHolderValue("ThemeName", "StringValue")
+	if name and name ~= "" then
+		GENV.__MaterialYouUI_Theme = name
+		return name
+	end
+	-- 3) file
+	local data = fsRead("MaterialYouUI_theme.txt")
+	if data and data ~= "" then
+		local clean = data:gsub("%s+", "")
+		GENV.__MaterialYouUI_Theme = clean
+		return clean
+	end
+	return nil
+end
 
-	if type(writefile) == "function" then
-		pcall(function()
-			writefile("MaterialYouUI_customcolor.txt",
-				string.format("%d,%d,%d,%s",
-					math.floor(color.R * 255 + 0.5),
-					math.floor(color.G * 255 + 0.5),
-					math.floor(color.B * 255 + 0.5),
-					isDark and "1" or "0"))
-		end)
+-- ============== Custom color ==============
+local function saveCustomThemeRaw(color, isDark)
+	GENV.__MaterialYouUI_CustomColor = color
+	GENV.__MaterialYouUI_CustomDark = isDark
+	setHolderValue("CustomColor", color)
+	setHolderValue("CustomDark", isDark)
+	if fsAvailable() then
+		fsWrite("MaterialYouUI_customcolor.txt",
+			string.format("%d,%d,%d,%s",
+				math.floor(color.R * 255 + 0.5),
+				math.floor(color.G * 255 + 0.5),
+				math.floor(color.B * 255 + 0.5),
+				isDark and "1" or "0"))
 	end
 end
 
 local function loadCustomThemeRaw()
-	-- 1) _G
-	if _G.__MaterialYouUI_CustomColor then
-		return _G.__MaterialYouUI_CustomColor, _G.__MaterialYouUI_CustomDark ~= false
+	-- 1) getgenv
+	if GENV.__MaterialYouUI_CustomColor then
+		return GENV.__MaterialYouUI_CustomColor, GENV.__MaterialYouUI_CustomDark ~= false
 	end
-	-- 2) CoreGui
-	local holder = getPersistHolder and getPersistHolder()
-	if holder then
-		local cv = holder:FindFirstChild(CUSTOM_COLOR_KEY)
-		local dv = holder:FindFirstChild(CUSTOM_DARK_KEY)
-		if cv and cv:IsA("Color3Value") then
-			local isDark = dv and dv.Value or true
-			_G.__MaterialYouUI_CustomColor = cv.Value
-			_G.__MaterialYouUI_CustomDark  = isDark
-			return cv.Value, isDark
-		end
+	-- 2) holder
+	local col = getHolderValue("CustomColor", "Color3Value")
+	local dark = getHolderValue("CustomDark", "BoolValue")
+	if col then
+		local isDark = dark ~= false
+		GENV.__MaterialYouUI_CustomColor = col
+		GENV.__MaterialYouUI_CustomDark = isDark
+		return col, isDark
 	end
 	-- 3) file
-	if type(readfile) == "function" and type(isfile) == "function" then
-		local ok, data = pcall(function()
-			if isfile("MaterialYouUI_customcolor.txt") then
-				return readfile("MaterialYouUI_customcolor.txt")
-			end
-		end)
-		if ok and data and data ~= "" then
-			local parts = {}
-			for s in data:gmatch("[^,]+") do table.insert(parts, s) end
-			if #parts == 4 then
-				local r = tonumber(parts[1]) or 0
-				local g = tonumber(parts[2]) or 0
-				local b = tonumber(parts[3]) or 0
-				local isDark = parts[4] == "1"
-				local c = Color3.fromRGB(r, g, b)
-				_G.__MaterialYouUI_CustomColor = c
-				_G.__MaterialYouUI_CustomDark  = isDark
-				return c, isDark
-			end
+	local data = fsRead("MaterialYouUI_customcolor.txt")
+	if data and data ~= "" then
+		local parts = {}
+		for s in data:gmatch("[^,]+") do table.insert(parts, s) end
+		if #parts == 4 then
+			local r = tonumber(parts[1]) or 0
+			local g = tonumber(parts[2]) or 0
+			local b = tonumber(parts[3]) or 0
+			local isDark = parts[4] == "1"
+			local c = Color3.fromRGB(r, g, b)
+			GENV.__MaterialYouUI_CustomColor = c
+			GENV.__MaterialYouUI_CustomDark = isDark
+			return c, isDark
 		end
 	end
 	return nil, nil
 end
 
--- воспринимаемая яркость (0..1). <0.5 → тёмная тема
 local function isColorDark(c)
 	local lum = c.R * 0.299 + c.G * 0.587 + c.B * 0.114
 	return lum < 0.5
@@ -1627,8 +1632,6 @@ function Container:AddColorpicker(o)
 			Parent = overlay,
 		})
 
-		-- Сам popup: фон + скругление + stroke. БЕЗ ClipsDescendants —
-		-- иначе UIStroke обрезается прямоугольником и углы становятся квадратными.
 		local popup = new("Frame", {
 			Size = UDim2.fromScale(1, 1),
 			BackgroundColor3 = win.Colors.surfaceContainerHighest,
@@ -3136,20 +3139,23 @@ function UI:CreateWindow(o)
 	win.IntroText = o.IntroText or "Loading interface..."
 	win.IntroSwaps = o.IntroSwaps or 3
 
-	local savedTheme = loadSavedTheme()
-	local customColor, customDark = loadCustomTheme()
+		-- ============ Восстановление темы ============
+	local savedThemeName = loadSavedTheme()
+	local customColor, customDark = loadCustomThemeRaw()
 
-	if customColor and savedTheme == "Custom" then
-		-- восстанавливаем кастомную тему
+	if customColor and savedThemeName == "Custom" then
+		-- кастомный цвет + имя "Custom"
 		win.ThemeName = "Custom"
 		win.CustomThemeColor = customColor
 		win.CustomThemeDark = customDark
 		win.Colors = buildScheme({ seed = customColor, dark = customDark ~= false })
+	elseif savedThemeName and UI.Themes[savedThemeName] then
+		-- пресет
+		win.ThemeName = savedThemeName
+		win.Colors = buildScheme(UI.Themes[savedThemeName])
 	else
-		local initialTheme = (savedTheme and UI.Themes[savedTheme] and savedTheme)
-			or (o.Theme and UI.Themes[o.Theme] and o.Theme)
-			or "Dark"
-		win.ThemeName = initialTheme
+		-- дефолт
+		win.ThemeName = (UI.Themes[o.Theme or "Dark"] and (o.Theme or "Dark")) or "Dark"
 		win.Colors = buildScheme(UI.Themes[win.ThemeName])
 	end
 	local C = win.Colors
