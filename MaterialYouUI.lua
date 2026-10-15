@@ -412,37 +412,32 @@ function UI:AddTheme(name, seedColor, isDark)
 	UI.Themes[name] = { seed = seedColor, dark = isDark ~= false }
 end
 
+-- ============================================================================
+-- [1] ЗАМЕНИТЬ блок фигур на этот код
+-- ============================================================================
+
 -- ============================================================
---  Фигуры Material You
+--  Фигуры Material You (v2)
+--  Контур считается по формулам и рисуется «капсулами» с круглыми концами,
+--  которые вписаны в контур изнутри -> гладкие края, без выступов и «бусин».
+--  Звёзды и цветы собраны из повёрнутых скруглённых прямоугольников.
+--  Любая фигура сама вписывается в рамку (FIT) и не вылезает за свой холдер.
 -- ============================================================
 
+local Defs, ShapeOrder = {}, {}
+local function reg(name, def)
+	if not Defs[name] then
+		table.insert(ShapeOrder, name)
+	end
+	Defs[name] = def
+end
+
+-- примитив: центр, размер, поворот (град.), скругление 0..0.5 (доля меньшей стороны)
 local function P(cx, cy, w, h, rot, c)
 	return { cx, cy, w, h, rot or 0, c or 0 }
 end
 
-local function Cl(cx, cy, w, h, part)
-	part.clip = { cx, cy, w, h }
-	return part
-end
-
-local function ring(n, ringR, lobeD, centerD, rotOff)
-	local s = { P(.5, .5, centerD, centerD, 0, .5) }
-	for i = 0, n - 1 do
-		local a = math.rad(i * 360 / n + (rotOff or 0))
-		s[#s + 1] = P(.5 + math.cos(a) * ringR, .5 + math.sin(a) * ringR, lobeD, lobeD, 0, .5)
-	end
-	return s
-end
-
-local function petals(n, w, h)
-	local s = {}
-	for i = 0, n - 1 do
-		s[#s + 1] = P(.5, .5, w, h, i * 180 / n, .5)
-	end
-	return s
-end
-
-local function stars(n, size, c)
+local function stars(n, size, c) -- n квадратов, повёрнутых друг к другу -> звезда из 4n лучей
 	local s = {}
 	for i = 0, n - 1 do
 		s[#s + 1] = P(.5, .5, size, size, i * 90 / n, c)
@@ -450,23 +445,11 @@ local function stars(n, size, c)
 	return s
 end
 
-local function triangleSpec()
-	local s, N = {}, 34
-	local top, bot, hw = .12, .88, .44
-	for i = 0, N - 1 do
-		local yc = top + (bot - top) * (i + .5) / N
-		local w = math.max(2 * hw * (yc - top) / (bot - top), .07)
-		s[#s + 1] = P(.5, yc, w, (bot - top) / N + .012, 0, .5)
-	end
-	return s
-end
-
-local function boomSpec()
+local function bars(n, length, width) -- n капсул через центр -> 2n лучей/лепестков
 	local s = {}
-	for i = 0, 5 do
-		s[#s + 1] = P(.5, .5, .98, .08, i * 30, .5)
+	for i = 0, n - 1 do
+		s[#s + 1] = P(.5, .5, length, width, i * 180 / n, .5)
 	end
-	s[#s + 1] = P(.5, .5, .36, .36, 0, .5)
 	return s
 end
 
@@ -491,98 +474,392 @@ local function pixelTriangle()
 	return s
 end
 
-local ShapeSpecs, ShapeOrder = {}, {}
-local function reg(name, spec)
-	if not ShapeSpecs[name] then
-		table.insert(ShapeOrder, name)
+-- ---------- описание фигур (в порядке как на картинке) ----------
+do
+	local sqrt, abs, max, min, cos, sin, pi = math.sqrt, math.abs, math.max, math.min, math.cos, math.sin, math.pi
+	local rad = math.rad
+
+	local function smin(a, b, k) -- мягкое объединение
+		local h = math.clamp(.5 + .5 * (b - a) / k, 0, 1)
+		return b + (a - b) * h - k * h * (1 - h)
 	end
-	ShapeSpecs[name] = spec
+	local function smax(a, b, k) -- мягкое пересечение (скругляет углы)
+		return -smin(-a, -b, k)
+	end
+	local function circle(x, y, r)
+		return sqrt(x * x + y * y) - r
+	end
+	local function rbox(x, y, hx, hy, r)
+		local qx, qy = abs(x) - hx + r, abs(y) - hy + r
+		local ox, oy = max(qx, 0), max(qy, 0)
+		return sqrt(ox * ox + oy * oy) + min(max(qx, qy), 0) - r
+	end
+	local function rbox4(x, y, hx, hy, tl, tr, br, bl) -- разные радиусы по углам
+		local r
+		if x > 0 then
+			r = (y > 0) and br or tr
+		else
+			r = (y > 0) and bl or tl
+		end
+		local qx, qy = abs(x) - hx + r, abs(y) - hy + r
+		local ox, oy = max(qx, 0), max(qy, 0)
+		return min(max(qx, qy), 0) + sqrt(ox * ox + oy * oy) - r
+	end
+	local function poly(x, y, v) -- v = { x1, y1, x2, y2, ... }
+		local n = #v / 2
+		local d = (x - v[1]) ^ 2 + (y - v[2]) ^ 2
+		local s = 1
+		local j = n
+		for i = 1, n do
+			local xi, yi, xj, yj = v[2 * i - 1], v[2 * i], v[2 * j - 1], v[2 * j]
+			local ex, ey = xj - xi, yj - yi
+			local wx, wy = x - xi, y - yi
+			local t = math.clamp((wx * ex + wy * ey) / (ex * ex + ey * ey), 0, 1)
+			local bx, by = wx - ex * t, wy - ey * t
+			d = min(d, bx * bx + by * by)
+			local c1, c2, c3 = y >= yi, y < yj, ex * wy > ey * wx
+			if (c1 and c2 and c3) or (not c1 and not c2 and not c3) then
+				s = -s
+			end
+			j = i
+		end
+		return s * sqrt(d)
+	end
+	local function rot(x, y, deg) -- возвращает ДВА числа
+		local a = rad(deg)
+		local c, s = cos(a), sin(a)
+		return x * c + y * s, -x * s + y * c
+	end
+	local function ngon(n, R, deg)
+		local v = {}
+		for i = 0, n - 1 do
+			local a = rad(deg or -90) + i * 2 * pi / n
+			v[#v + 1] = R * cos(a)
+			v[#v + 1] = R * sin(a)
+		end
+		return v
+	end
+	local function star(n, r0, ra, p, phase) -- полярная звезда r(θ)
+		phase = phase or -pi / 2
+		return function(th)
+			return r0 + ra * ((cos(n * (th - phase)) + 1) / 2) ^ p
+		end
+	end
+	local function cookie(n, a, phase) -- «печенька»: r(θ) = 1 + a·cos(nθ)
+		phase = phase or -pi / 2
+		return function(th)
+			return 1 + a * cos(n * (th - phase))
+		end
+	end
+	local function ring(n, dist, r, deg, ax, ay)
+		local out = {}
+		for i = 0, n - 1 do
+			local a = rad(deg or -90) + i * 2 * pi / n
+			out[#out + 1] = { dist * (ax or 1) * cos(a), dist * (ay or 1) * sin(a), r }
+		end
+		return out
+	end
+	local function circles(list, k) -- мягкое объединение кругов
+		return function(x, y)
+			local d
+			for _, c in ipairs(list) do
+				local v = circle(x - c[1], y - c[2], c[3])
+				d = d and smin(d, v, k) or v
+			end
+			return d
+		end
+	end
+
+	local function sdf(name, fn, ox, oy) -- ox, oy: точка, из которой «видна» вся фигура
+		reg(name, { sdf = fn, ox = ox, oy = oy })
+	end
+	local function polar(name, fn)
+		reg(name, { polar = fn })
+	end
+	local function prims(name, spec)
+		reg(name, { prims = spec })
+	end
+
+	sdf("Circle", function(x, y)
+		return circle(x, y, 1)
+	end)
+	sdf("Square", function(x, y)
+		return rbox(x, y, .8, .8, .42)
+	end)
+	sdf("Slanted", function(x, y)
+		return rbox(x + .2 * y, y, .72, .8, .34)
+	end)
+	sdf("Arch", function(x, y)
+		return rbox4(x, y, .82, .9, .82, .82, .2, .2)
+	end)
+	sdf("Semicircle", function(x, y)
+		return smax(circle(x, y - .5, 1), y - .5, .16)
+	end)
+	sdf("Oval", function(x, y)
+		local a, b = rot(x, y, -35)
+		return sqrt(a * a + (b / .68) ^ 2) - 1
+	end)
+	sdf("Pill", function(x, y)
+		local a, b = rot(x, y, -40)
+		return rbox(a, b, .95, .55, .55)
+	end)
+	local TRI = ngon(3, .62)
+	sdf("Triangle", function(x, y)
+		return poly(x, y, TRI) - .3
+	end)
+	local ARR = ngon(3, .66)
+	sdf("Arrow", function(x, y)
+		return smax(poly(x, y, ARR) - .28, -circle(x, y - 1.45, .98), .12)
+	end)
+	sdf("Fan", function(x, y)
+		return rbox4(x, y, .9, .9, .22, .9, .22, .22)
+	end)
+	local DIA = { 0, -.74, .5, 0, 0, .74, -.5, 0 }
+	sdf("Diamond", function(x, y)
+		return poly(x, y, DIA) - .2
+	end)
+	local CLAM = { -.75, 0, -.38, -.5, .38, -.5, .75, 0, .38, .5, -.38, .5 }
+	sdf("Clamshell", function(x, y)
+		return poly(x, y, CLAM) - .22
+	end)
+	local PEN = ngon(5, .62)
+	sdf("Pentagon", function(x, y)
+		return poly(x, y, PEN) - .28
+	end)
+	local GEM = ngon(6, .64)
+	sdf("Gem", function(x, y)
+		return poly(x, y, GEM) - .3
+	end)
+	prims("Very sunny", stars(2, .66, .1))
+	polar("Sunny", star(8, .8, .2, 1.2))
+	polar("4-sided cookie", cookie(4, .16, -pi / 4))
+	polar("6-sided cookie", cookie(6, .09))
+	polar("7-sided cookie", cookie(7, .075))
+	polar("9-sided cookie", cookie(9, .06))
+	polar("12-sided cookie", cookie(12, .045))
+	local C4 = ring(4, .7, .5, -45)
+	C4[#C4 + 1] = { 0, 0, .36 }
+	sdf("4-leaf clover", circles(C4, .09), 0, 0)
+	local C8 = ring(8, .7, .3, -90)
+	C8[#C8 + 1] = { 0, 0, .62 }
+	sdf("8-leaf clover", circles(C8, .1), 0, 0)
+	prims("Burst", stars(3, .64, .05))
+	prims("Soft burst", stars(3, .64, .2))
+	prims("Boom", bars(8, .92, .075))
+	prims("Soft boom", bars(8, .92, .21))
+	prims("Flower", bars(4, .92, .3))
+	local PUF = circles(ring(10, 1, .27, -90, .7, .58), .1)
+	sdf("Puffy", function(x, y)
+		return min(sqrt((x / .62) ^ 2 + (y / .5) ^ 2) - 1, PUF(x, y))
+	end, 0, 0)
+	local PD = circles(ring(4, .55, .4, -90), .12)
+	sdf("Puffy diamond", function(x, y)
+		local a, b = rot(x, y, 45)
+		return smin(PD(x, y), rbox(a, b, .4, .4, .12), .12)
+	end, 0, 0)
+	sdf("Ghost-ish", function(x, y)
+		return smax(rbox4(x, y, .8, .9, .8, .8, .3, .3), -circle(x, y - 1.15, .52), .1)
+	end)
+	prims("Pixel circle", pixelCircle())
+	prims("Pixel triangle", pixelTriangle())
+	sdf("Bun", function(x, y)
+		return smin(rbox(x, y + .45, .9, .43, .43), rbox(x, y - .45, .9, .43, .43), .12)
+	end, 0, 0)
+	sdf("Heart", function(x, y)
+		local a, b = rot(x, y, 45)
+		local lobes = smin(circle(x + .3536, y + .3536, .5), circle(x - .3536, y + .3536, .5), .07)
+		return smin(lobes, rbox(a, b, .5, .5, .08), .09)
+	end)
 end
 
-reg("Circle", { P(.5, .5, .94, .94, 0, .5) })
-reg("Square", { P(.5, .5, .86, .86, 0, .28) })
-reg("Slanted", { P(.5, .5, .8, .86, 10, .22) })
-reg("Arch", { P(.5, .5, .84, .9, 0, .5), P(.5, .74, .84, .42, 0, .14) })
-reg("Semicircle", { Cl(.5, .5, .96, .48, P(.5, .74, .96, .96, 0, .5)) })
-reg("Oval", { P(.5, .5, .9, .64, -35, .5) })
-reg("Pill", { P(.5, .5, .98, .5, -40, .5) })
-reg("Triangle", triangleSpec())
-reg("Fan", { Cl(.5, .5, .88, .88, P(.06, .94, 1.76, 1.76, 0, .5)) })
-reg("Diamond", { P(.5, .5, .62, .62, 45, .16) })
-reg("Gem", stars(2, .72, .3))
-reg("Burst", stars(3, .70, 0))
-reg("Soft burst", stars(3, .70, .16))
-reg("Sunny", stars(4, .64, .24))
-reg("Very sunny", stars(6, .62, .3))
-reg("Boom", boomSpec())
-reg("Soft boom", petals(8, .96, .22))
-reg("Flower", petals(4, .96, .42))
-reg("4-leaf clover", ring(4, .24, .5, .44, 45))
-reg("8-leaf clover", ring(8, .3, .34, .56, 0))
-reg("6-sided cookie", ring(6, .33, .32, .64, 0))
-reg("9-sided cookie", ring(9, .36, .24, .72, 0))
-reg("12-sided cookie", ring(12, .38, .2, .76, 0))
-reg("Puffy", ring(10, .3, .3, .6, 0))
-reg("Heart", { P(.31, .36, .5, .5, 0, .5), P(.69, .36, .5, .5, 0, .5), P(.5, .52, .48, .48, 45, .1) })
-reg("Pixel circle", pixelCircle())
-reg("Pixel triangle", pixelTriangle())
-reg("Bun", { P(.5, .3, .96, .46, 0, .32), P(.5, .72, .96, .46, 0, .32) })
+-- ---------- движок ----------
+-- { радиус круглого конца, шаг точек по контуру } в долях рамки; чем меньше — тем глаже и тем больше рамок
+local DETAIL = {
+	low = { .06, .06 }, -- мелкие иконки (≈ до 24px)
+	mid = { .05, .03 }, -- по умолчанию (логотип, кнопки, лента)
+	high = { .04, .02 }, -- крупные фигуры (≈ от 80px)
+}
+local FIT = .92 -- во сколько раз фигура занимает рамку (остальное — поля)
+local DENSE = 360
+local denseCache, capCache = {}, {}
 
-function UI:RegisterShape(name, spec)
-	reg(name, spec)
+local function rayLen(f, ox, oy, cx, cy)
+	local lo, hi, t = 0, nil, 0
+	while t < 2.6 do
+		t += .05
+		if f(ox + cx * t, oy + cy * t) > 0 then
+			hi = t
+			break
+		end
+		lo = t
+	end
+	if not hi then
+		return lo
+	end
+	for _ = 1, 14 do
+		local mid = (lo + hi) / 2
+		if f(ox + cx * mid, oy + cy * mid) > 0 then
+			hi = mid
+		else
+			lo = mid
+		end
+	end
+	return lo
 end
 
-UI.ShapeNames = ShapeOrder
+-- плотный контур, уложенный в рамку и отцентрированный
+local function dense(name)
+	local cached = denseCache[name]
+	if cached then
+		return cached
+	end
+	local d = Defs[name]
+	local ox, oy = 0, 0
+	if d.sdf then
+		if d.ox ~= nil then
+			ox, oy = d.ox, d.oy or 0
+		else -- самая «глубокая» точка внутри фигуры
+			local best = math.huge
+			local g = -1.2
+			while g <= 1.2001 do
+				local h = -1.2
+				while h <= 1.2001 do
+					local v = d.sdf(g, h)
+					if v < best then
+						best, ox, oy = v, g, h
+					end
+					h += .06
+				end
+				g += .06
+			end
+		end
+	end
+	local pts = table.create(DENSE * 2)
+	local x0, y0, x1, y1 = math.huge, math.huge, -math.huge, -math.huge
+	for i = 0, DENSE - 1 do
+		local th = i / DENSE * 2 * math.pi
+		local cx, cy = math.cos(th), math.sin(th)
+		local r = d.polar and d.polar(th) or rayLen(d.sdf, ox, oy, cx, cy)
+		local px, py = ox + cx * r, oy + cy * r
+		pts[2 * i + 1], pts[2 * i + 2] = px, py
+		x0, x1 = math.min(x0, px), math.max(x1, px)
+		y0, y1 = math.min(y0, py), math.max(y1, py)
+	end
+	local k = FIT / math.max(x1 - x0, y1 - y0)
+	local mx, my = (x0 + x1) / 2, (y0 + y1) / 2
+	for i = 1, DENSE do
+		pts[2 * i - 1] = .5 + (pts[2 * i - 1] - mx) * k
+		pts[2 * i] = .5 + (pts[2 * i] - my) * k
+	end
+	cached = { ox = .5 + (ox - mx) * k, oy = .5 + (oy - my) * k, pts = pts }
+	denseCache[name] = cached
+	return cached
+end
 
-local function makeShape(parent, name, color)
-	local spec = ShapeSpecs[name] or ShapeSpecs.Circle
-	local root = new("Frame", {
+-- центры круглых концов: точки контура через равные промежутки, сдвинутые на R внутрь по нормали
+local function capsFor(name, detail)
+	local key = name .. "|" .. detail
+	local cached = capCache[key]
+	if cached then
+		return cached
+	end
+	local R, DS = DETAIL[detail][1], DETAIL[detail][2]
+	local o = dense(name)
+	local pts, n = o.pts, DENSE
+
+	local cum = table.create(n + 1)
+	cum[1] = 0
+	for i = 1, n do
+		local j = i % n + 1
+		local dx, dy = pts[2 * j - 1] - pts[2 * i - 1], pts[2 * j] - pts[2 * i]
+		cum[i + 1] = cum[i] + math.sqrt(dx * dx + dy * dy)
+	end
+	local total = cum[n + 1]
+	local cnt = math.max(12, math.floor(total / DS + .5))
+
+	local out = table.create(cnt * 2)
+	local j = 1
+	for m = 0, cnt - 1 do
+		local target = total * m / cnt
+		while cum[j + 1] < target do
+			j += 1
+		end
+		local a, b = j, j % n + 1
+		local seg = cum[j + 1] - cum[j]
+		local t = seg == 0 and 0 or (target - cum[j]) / seg
+		local px = pts[2 * a - 1] + (pts[2 * b - 1] - pts[2 * a - 1]) * t
+		local py = pts[2 * a] + (pts[2 * b] - pts[2 * a]) * t
+		local p0, p1 = (a - 3) % n + 1, (a + 2) % n + 1 -- касательная по соседним точкам
+		local tx, ty = pts[2 * p1 - 1] - pts[2 * p0 - 1], pts[2 * p1] - pts[2 * p0]
+		local tl = math.sqrt(tx * tx + ty * ty)
+		if tl == 0 then
+			tl = 1
+		end
+		local nx, ny = ty / tl, -tx / tl -- внешняя нормаль
+		out[#out + 1] = px - nx * R
+		out[#out + 1] = py - ny * R
+	end
+	cached = { ox = o.ox, oy = o.oy, R = R, caps = out }
+	capCache[key] = cached
+	return cached
+end
+
+-- makeShape(parent, name, color, opts)
+--   opts.detail       "low" | "mid" (по умолчанию) | "high"
+--   opts.group        true -> корень CanvasGroup (можно плавно менять прозрачность всей фигуры целиком)
+--   opts.transparency стартовая GroupTransparency (только с group)
+--   opts.zindex       ZIndex корня
+-- Холдер (parent) должен быть квадратным.
+local function makeShape(parent, name, color, opts)
+	opts = opts or {}
+	local key = Defs[name] and name or "Circle"
+	local def = Defs[key]
+	local root = new(opts.group and "CanvasGroup" or "Frame", {
 		BackgroundTransparency = 1,
+		BorderSizePixel = 0,
 		AnchorPoint = Vector2.new(.5, .5),
 		Position = UDim2.fromScale(.5, .5),
 		Size = UDim2.fromScale(1, 1),
+		ZIndex = opts.zindex or 1,
 		Parent = parent,
 	})
+	if opts.group then
+		root.GroupTransparency = opts.transparency or 0
+	end
+
 	local parts = {}
-	local function make(container, p)
+	local function add(cx, cy, w, h, rotDeg, corner)
 		local f = new("Frame", {
 			AnchorPoint = Vector2.new(.5, .5),
-			Position = UDim2.fromScale(p[1], p[2]),
-			Size = UDim2.fromScale(p[3], p[4]),
-			Rotation = p[5] or 0,
+			Position = UDim2.fromScale(cx, cy),
+			Size = UDim2.fromScale(w, h),
+			Rotation = rotDeg,
 			BackgroundColor3 = color,
 			BorderSizePixel = 0,
-			Parent = container,
+			Parent = root,
 		})
-		if (p[6] or 0) > 0 then
-			corner(f, UDim.new(p[6], 0))
+		if corner > 0 then
+			new("UICorner", { CornerRadius = UDim.new(corner, 0), Parent = f })
 		end
 		parts[#parts + 1] = f
 	end
-	for _, p in ipairs(spec) do
-		if p.clip then
-			local cl = p.clip
-			local holder = new("Frame", {
-				BackgroundTransparency = 1,
-				ClipsDescendants = true,
-				AnchorPoint = Vector2.new(.5, .5),
-				Position = UDim2.fromScale(cl[1], cl[2]),
-				Size = UDim2.fromScale(cl[3], cl[4]),
-				Parent = root,
-			})
-			make(holder, {
-				(p[1] - (cl[1] - cl[3] / 2)) / cl[3],
-				(p[2] - (cl[2] - cl[4] / 2)) / cl[4],
-				p[3] / cl[3],
-				p[4] / cl[4],
-				p[5],
-				p[6],
-			})
-		else
-			make(root, p)
+
+	if def.prims then
+		for _, p in ipairs(def.prims) do
+			add(p[1], p[2], p[3], p[4], p[5] or 0, p[6] or 0)
+		end
+	else
+		local o = capsFor(key, opts.detail or "mid")
+		local R, caps = o.R, o.caps
+		for i = 1, #caps, 2 do
+			local cx, cy = caps[i], caps[i + 1]
+			local dx, dy = cx - o.ox, cy - o.oy
+			local len = math.sqrt(dx * dx + dy * dy)
+			add((o.ox + cx) / 2, (o.oy + cy) / 2, len + 2 * R, 2 * R, math.deg(math.atan2(dy, dx)), .5)
 		end
 	end
-	local obj = { Root = root, Parts = parts, Name = name }
+
+	local obj = { Root = root, Parts = parts, Name = key }
 	function obj.SetColor(_, c, t)
 		for _, f in ipairs(parts) do
 			if t then
@@ -592,14 +869,40 @@ local function makeShape(parent, name, color)
 			end
 		end
 	end
+	function obj.SetTransparency(_, v)
+		if opts.group then
+			root.GroupTransparency = v
+		end
+	end
 	function obj.Destroy()
 		root:Destroy()
 	end
 	return obj
 end
 
-function UI:CreateShape(parent, name, color)
-	return makeShape(parent, name, color or Color3.new(1, 1, 1))
+-- Зарегистрировать свою фигуру:
+--   UI:RegisterShape("Name", function(x, y) return расстояние_со_знаком end)   -- (-1..1, y вниз; <0 = внутри)
+--   UI:RegisterShape("Name", { polar = function(theta) return radius end })     -- звезда/«печенька»
+--   UI:RegisterShape("Name", { {cx, cy, w, h, rot, corner}, ... })              -- набор прямоугольников (0..1)
+function UI:RegisterShape(name, spec)
+	denseCache[name] = nil
+	for _, d in ipairs({ "low", "mid", "high" }) do
+		capCache[name .. "|" .. d] = nil
+	end
+	if type(spec) == "function" then
+		reg(name, { sdf = spec })
+	elseif type(spec) == "table" and (spec.sdf or spec.polar) then
+		reg(name, spec)
+	else
+		reg(name, { prims = spec })
+	end
+end
+
+UI.ShapeNames = ShapeOrder
+
+-- Публичный помощник: UI:CreateShape(parentFrame, "Heart", Color3, { detail = "high" })
+function UI:CreateShape(parent, name, color, opts)
+	return makeShape(parent, name, color or Color3.new(1, 1, 1), opts)
 end
 
 -- ============================================================
@@ -2513,6 +2816,58 @@ end
 --  Window controls
 -- ============================================================
 
+-- Фигуры-подложки для кнопок окна (свернуть / развернуть / закрыть):
+-- при каждом наведении выбирается случайная фигура (не такая же, как в прошлый раз).
+-- Список можно менять: UI.ButtonShapes = { "Circle", "Heart", ... }
+UI.ButtonShapes = {
+	"Circle", "Square", "Pill", "Oval", "Slanted", "Arch", "Diamond", "Pentagon", "Gem",
+	"Flower", "Soft burst", "Soft boom", "Sunny", "4-sided cookie", "6-sided cookie",
+	"7-sided cookie", "9-sided cookie", "12-sided cookie", "4-leaf clover", "8-leaf clover",
+	"Puffy", "Puffy diamond", "Heart",
+}
+
+local function shapeHover(win, btn)
+	local pool, current, last = UI.ButtonShapes, nil, nil
+
+	local function drop(s)
+		if not s then
+			return
+		end
+		tween(s.Root, .18, { GroupTransparency = 1, Size = UDim2.fromScale(.55, .55) })
+		task.delay(.22, s.Destroy)
+	end
+
+	btn.MouseEnter:Connect(function()
+		drop(current)
+		local name
+		repeat
+			name = pool[math.random(#pool)]
+		until name ~= last or #pool < 2
+		last = name
+		-- ZIndex = -1: подложка лежит под иконкой кнопки
+		local s = makeShape(btn, name, win.Colors.onSurface, { group = true, transparency = 1, zindex = -1 })
+		s.Root.Size = UDim2.fromScale(.5, .5)
+		s.Root.Rotation = math.random(-60, 60)
+		tween(s.Root, .45, { GroupTransparency = .86, Size = UDim2.fromScale(1, 1), Rotation = 0 }, Back, Out)
+		current = s
+	end)
+	btn.MouseLeave:Connect(function()
+		drop(current)
+		current = nil
+	end)
+	-- лёгкое «нажатие»
+	btn.MouseButton1Down:Connect(function()
+		if current then
+			tween(current.Root, .1, { Size = UDim2.fromScale(.8, .8) })
+		end
+	end)
+	btn.MouseButton1Up:Connect(function()
+		if current then
+			tween(current.Root, .3, { Size = UDim2.fromScale(1, 1) }, Back, Out)
+		end
+	end)
+end
+
 local function iconButton(win, parent, kind, order, fn)
 	local b = new("TextButton", {
 		Text = "",
@@ -2524,12 +2879,7 @@ local function iconButton(win, parent, kind, order, fn)
 	})
 	corner(b, FULL)
 	win:Bind(b, "BackgroundColor3", "onSurface")
-	b.MouseEnter:Connect(function()
-		tween(b, .15, { BackgroundTransparency = .965 })
-	end)
-	b.MouseLeave:Connect(function()
-		tween(b, .2, { BackgroundTransparency = 1 })
-	end)
+		shapeHover(win, b)
 	local function bar(w, rot)
 		local f = new("Frame", {
 			AnchorPoint = Vector2.new(.5, .5),
@@ -2667,7 +3017,7 @@ function Window:Notify(o)
 		Size = UDim2.fromOffset(24, 24),
 		Parent = toast,
 	})
-	local icon = makeShape(iconBox, o.Shape or win.LogoShape, win.Colors.primary)
+	local icon = makeShape(iconBox, o.Shape or win.LogoShape, win.Colors.primaryContainer, { detail = "low" })
 	for _, part in ipairs(icon.Parts) do
 		win:Bind(part, "BackgroundColor3", "primary")
 	end
@@ -2784,7 +3134,7 @@ function Window:AddTab(o)
 			Parent = iconHolder,
 		})
 	else
-		shapeIcon = makeShape(iconHolder, o.Shape or "Circle", win.Colors.onSurfaceVariant)
+		shapeIcon = makeShape(iconHolder, o.Shape or "Circle", win.Colors.onSurfaceVariant, { detail = "low" })
 	end
 	local lbl = text({
 		Text = o.Name or "Tab",
@@ -2873,6 +3223,9 @@ local function playIntro(win, onDone)
 	local gui, C = win.Gui, win.Colors
 	local PITCH, VIEW_W, VIEW_H = 100, 460, 130
 	local names = shuffled(ShapeOrder)
+	for i = #names, 25, -1 do
+		names[i] = nil
+	end
 	local N = #names
 
 	local scrim = new("Frame", {
@@ -2921,6 +3274,9 @@ local function playIntro(win, onDone)
 			Parent = strip,
 		})
 		items[i] = { Holder = holder, Shape = makeShape(holder, name, C.outline), X = x }
+		if i % 3 == 0 then
+			task.wait()
+		end
 	end
 
 	local nameLbl = text({
@@ -3061,7 +3417,7 @@ local function playIntro(win, onDone)
 			ZIndex = 2,
 			Parent = card,
 		})
-		return { Holder = h, Shape = makeShape(h, name, color) }
+		return { Holder = h, Shape = makeShape(h, name, color, { detail = "high" }) }
 	end
 	local function setName(n)
 		nameLbl.Text = n
