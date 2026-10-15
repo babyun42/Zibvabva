@@ -3021,12 +3021,20 @@ function Window:Notify(o)
 		pickShape = pool[math.random(#pool)]
 	end
 	local icon = makeShape(iconBox, pickShape, win.Colors.primaryContainer, { detail = "low" })
-		-- Медленное вращение фигуры вокруг центра
+	-- Плавное бесконечное вращение через RenderStepped
 	icon.Root.Rotation = 0
-	tween(icon.Root, 12, { Rotation = 360 }, Enum.EasingStyle.Linear, Enum.EasingDirection.In)
-	-- при появлении: небольшой подъём масштаба для живости
+	task.spawn(function()
+		local speedDegPerSec = 30   -- 30° в секунду → полный оборот за 12 сек
+		while icon.Root and icon.Root.Parent ~= nil do
+			local dt = task.wait()
+			icon.Root.Rotation = (icon.Root.Rotation + speedDegPerSec * dt) % 360
+		end
+	end)
+
+	-- при появлении: подъём масштаба для живости
 	icon.Root.Size = UDim2.fromScale(0.85, 0.85)
 	tween(icon.Root, .4, { Size = UDim2.fromScale(1, 1) }, Back, Out)
+
 	for _, part in ipairs(icon.Parts) do
 		win:Bind(part, "BackgroundColor3", "primary")
 	end
