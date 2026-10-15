@@ -2818,12 +2818,9 @@ end
 
 -- Фигуры-подложки для кнопок окна (свернуть / развернуть / закрыть):
 -- при каждом наведении выбирается случайная фигура (не такая же, как в прошлый раз).
--- Список можно менять: UI.ButtonShapes = { "Circle", "Heart", ... }
+-- Список можно менять: UI.ButtonShapes = { "Circle", ... }
 UI.ButtonShapes = {
-	"Circle", "Square", "Pill", "Oval", "Slanted", "Arch", "Diamond", "Pentagon", "Gem",
-	"Flower", "Soft burst", "Soft boom", "Sunny", "4-sided cookie", "6-sided cookie",
-	"7-sided cookie", "9-sided cookie", "12-sided cookie", "4-leaf clover", "8-leaf clover",
-	"Puffy", "Puffy diamond", "Heart",
+	"Circle", "Square", "Pill", "Slanted", "Arch", "Pentagon", "Gem", "Flower", "Soft burst", "Soft boom", "Sunny", "4-sided cookie", "6-sided cookie", "4-leaf clover", "8-leaf clover", "Puffy",
 }
 
 local function shapeHover(win, btn)
@@ -3017,7 +3014,13 @@ function Window:Notify(o)
 		Size = UDim2.fromOffset(24, 24),
 		Parent = toast,
 	})
-	local icon = makeShape(iconBox, o.Shape or win.LogoShape, win.Colors.primaryContainer, { detail = "low" })
+	-- случайная фигура для каждой нотификации (если не указана явно)
+	local pickShape = o.Shape
+	if not pickShape then
+		local pool = UI.NotificationShapes or UI.ButtonShapes
+		pickShape = pool[math.random(#pool)]
+	end
+	local icon = makeShape(iconBox, pickShape, win.Colors.primaryContainer, { detail = "low" })
 	for _, part in ipairs(icon.Parts) do
 		win:Bind(part, "BackgroundColor3", "primary")
 	end
