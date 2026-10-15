@@ -3021,6 +3021,12 @@ function Window:Notify(o)
 		pickShape = pool[math.random(#pool)]
 	end
 	local icon = makeShape(iconBox, pickShape, win.Colors.primaryContainer, { detail = "low" })
+		-- Медленное вращение фигуры вокруг центра
+	icon.Root.Rotation = 0
+	tween(icon.Root, 12, { Rotation = 360 }, Enum.EasingStyle.Linear, Enum.EasingDirection.In)
+	-- при появлении: небольшой подъём масштаба для живости
+	icon.Root.Size = UDim2.fromScale(0.85, 0.85)
+	tween(icon.Root, .4, { Size = UDim2.fromScale(1, 1) }, Back, Out)
 	for _, part in ipairs(icon.Parts) do
 		win:Bind(part, "BackgroundColor3", "primary")
 	end
