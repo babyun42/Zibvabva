@@ -1828,13 +1828,12 @@ function Container:AddInput(o)
 		focused = true
 		tween(boxStroke, .2, { Color = win.Colors.primary })
 	end)
-	tb.FocusLost:Connect(function(enter)
-		focused = false
-		tween(boxStroke, .2, { Color = win.Colors.outlineVariant })
-		if enter and o.Callback then
+	-- Live-режим: callback на каждое нажатие клавиши
+	if o.Live and o.Callback then
+		tb:GetPropertyChangedSignal("Text"):Connect(function()
 			task.spawn(o.Callback, tb.Text)
-		end
-	end)
+		end)
+	end
 
 	win:OnTheme(function(animate)
 		if not focused then
