@@ -13,13 +13,13 @@ local LocalPlayer = Players.LocalPlayer
 
 local NAME = "UniversalScriptHub"
 local VERSION = "0.4 beta"
-local SCRIPT_URL = "https://raw.githubusercontent.com/babyun42/Zibvabva/refs/heads/main/Univeral.lua"
+local SCRIPT_URL = "https://raw.githubusercontent.com/babyun42/Zibvabva/refs/heads/main/Universal.lua"
 local GITHUB_URL = "https://github.com/babyun42"
 local WIDTH, HEIGHT = 850, 420
 local MIN_WIDTH, MIN_HEIGHT = 420, 64
 
 -- ---------------------------------------------------------------------------
--- Куда класть интерфейс + удаление старой копии
+-- Куда класть интерфейс
 -- ---------------------------------------------------------------------------
 local function hostGui()
 	local ok, ui = pcall(function()
