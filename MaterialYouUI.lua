@@ -1739,12 +1739,20 @@ function Container:AddKeybind(o)
 		Parent = btn,
 	})
 
-	local function render(animate)
-		local C = win.Colors
-		lbl.Text = listening and "..." or keyName(key)
-		apply(btn, { BackgroundColor3 = listening and C.primary or C.surfaceContainer }, animate)
-		apply(lbl, { TextColor3 = listening and C.onPrimary or C.onSurface }, animate)
-	end
+	local pressed = false
+    local function render(animate)
+    	local C = win.Colors
+    	local size = pressed and 28 or (state and 24 or 16) -- при нажатии ползунок «набухает»
+    	apply(track, { BackgroundColor3 = state and C.primary or C.surfaceContainerHighest }, animate)
+    	apply(stroke, { Color = state and C.primary or C.outline }, animate)
+	    apply(thumb, {
+		    BackgroundColor3 = state and C.onPrimary or C.outline,
+	    	Size = UDim2.fromOffset(size, size),
+	    	Position = UDim2.new(0, state and 36 or 16, .5, 0),
+    	}, animate)
+	    apply(check.Scale, { Scale = state and 1 or 0 }, animate, .25) -- галочка проявляется внутри ползунка
+    end
+
 	render(false)
 	win:OnTheme(render)
 
@@ -2478,6 +2486,18 @@ function Container:AddESPPreview(o)
 		ZIndex = 1, Parent = viewFrame,
 	})
 
+    local previewHighlight = new("Frame", {
+    BackgroundColor3 = state.boxColor,   -- цвет подсветки
+    BackgroundTransparency = 0.75,
+    BorderSizePixel = 0,
+    Visible = false,
+    ZIndex = 2,
+    Size = UDim2.fromOffset(boxW, boxH),
+    Position = UDim2.fromOffset(boxLeft, boxTop),
+    Parent = viewFrame,
+    })
+    corner(previewHighlight, 6)
+
 	-- === R6 манекен ===
 	local model = new("Model", { Name = "Mannequin", Parent = vpf })
 	local bodyColor = win.Colors.onSurfaceVariant
@@ -2694,6 +2714,12 @@ function Container:AddESPPreview(o)
 		boxStroke.Transparency = boxOn and 0 or (hover.boxes and 0.45 or 0.75)
 		boxStroke.Thickness    = boxOn and 1.5 or 1
 
+		-- Highlight
+        previewHighlight.BackgroundColor3 = state.boxColor
+        previewHighlight.Visible = state.enabled and (state.highlight or false)
+        previewHighlight.Position = UDim2.fromOffset(boxLeft, boxTop)
+        previewHighlight.Size = UDim2.fromOffset(boxW, boxH)
+
 		-- Name tag
 		nameTag.Position   = UDim2.fromOffset(boxLeft + boxW / 2, boxTop - 4)
 		nameTag.Text       = state.nameText
@@ -2792,6 +2818,7 @@ function Container:AddESPPreview(o)
 
 	-- API
 	local api = {}
+	function api:SetHighlight(v)      state.highlight = v end
 	function api:SetEnabled(v)        state.enabled = v end
 	function api:SetBoxes(v)          state.boxes = v end
 	function api:SetTracers(v)        state.tracers = v end
