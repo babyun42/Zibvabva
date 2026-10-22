@@ -2470,18 +2470,6 @@ function Container:AddESPPreview(o)
 		ZIndex = 1, Parent = viewFrame,
 	})
 
-    local previewHighlight = new("Frame", {
-    BackgroundColor3 = state.boxColor,   -- цвет подсветки
-    BackgroundTransparency = 0.75,
-    BorderSizePixel = 0,
-    Visible = false,
-    ZIndex = 2,
-    Size = UDim2.fromOffset(boxW, boxH),
-    Position = UDim2.fromOffset(boxLeft, boxTop),
-    Parent = viewFrame,
-    })
-    corner(previewHighlight, 6)
-
 	-- === R6 манекен ===
 	local model = new("Model", { Name = "Mannequin", Parent = vpf })
 	local bodyColor = win.Colors.onSurfaceVariant
@@ -2570,15 +2558,14 @@ function Container:AddESPPreview(o)
 	local boxHitLeft   = hitZone(10)
 	local boxHitRight  = hitZone(10)
 	local boxHitBottom = hitZone(10)
-	local tracerHit  = hitZone(11)
-	local headDotHit = hitZone(12)
-	local nameTagHit = hitZone(12)
-	-- HP picker должен быть ВЫШЕ nameTag, чтобы клик по верхней стороне ловился
 	local hpLeftHit  = hitZone(14)
 	local hpRightHit = hitZone(14)
 	local hpTopHit   = hitZone(14)
+	local tracerHit  = hitZone(11)
+	local headDotHit = hitZone(12)
+	local nameTagHit = hitZone(12)
 
-	-- === State ===
+	-- === STATE (ТЕПЕРЬ ОПРЕДЕЛЕН ДО ИСПОЛЬЗОВАНИЯ) ===
 	local state = {
 		enabled   = o.Enabled  == true,
 		boxes     = o.Boxes    ~= false,
@@ -2603,6 +2590,7 @@ function Container:AddESPPreview(o)
 		boxes = "Boxes", tracers = "Tracers",
 		headDot = "HeadDot", healthBar = "HealthBar", nameTag = "NameTag",
 	}
+
 	local function toggleKey(key)
 		if not state.enabled then
 			state.enabled = true
@@ -2613,16 +2601,11 @@ function Container:AddESPPreview(o)
 	end
 
 	masterHit.MouseButton1Click:Connect(function()
-		playClick(1)
 		state.enabled = not state.enabled
 		if o.OnToggle then o.OnToggle("Enabled", state.enabled) end
 	end)
 
 	local function bindBoxToggle(z)
-	    z.MouseButton1Click:Connect(function()
-			playClick(1)
-			toggleKey("boxes")
-		end)
 		z.MouseButton1Click:Connect(function() toggleKey("boxes") end)
 		z.MouseEnter:Connect(function() hover.boxes = true end)
 		z.MouseLeave:Connect(function() hover.boxes = false end)
@@ -2632,15 +2615,15 @@ function Container:AddESPPreview(o)
 	bindBoxToggle(boxHitRight)
 	bindBoxToggle(boxHitBottom)
 
-    tracerHit.MouseButton1Click:Connect(function() playClick(1); toggleKey("tracers") end)
+	tracerHit.MouseButton1Click:Connect(function() toggleKey("tracers") end)
 	tracerHit.MouseEnter:Connect(function() hover.tracers = true end)
 	tracerHit.MouseLeave:Connect(function() hover.tracers = false end)
 
-	headDotHit.MouseButton1Click:Connect(function() playClick(1); toggleKey("headDot") end)
+	headDotHit.MouseButton1Click:Connect(function() toggleKey("headDot") end)
 	headDotHit.MouseEnter:Connect(function() hover.headDot = true end)
 	headDotHit.MouseLeave:Connect(function() hover.headDot = false end)
 
-	nameTagHit.MouseButton1Click:Connect(function() playClick(1); toggleKey("nameTag") end)
+	nameTagHit.MouseButton1Click:Connect(function() toggleKey("nameTag") end)
 	nameTagHit.MouseEnter:Connect(function() hover.nameTag = true end)
 	nameTagHit.MouseLeave:Connect(function() hover.nameTag = false end)
 
@@ -2658,9 +2641,9 @@ function Container:AddESPPreview(o)
 			toggleKey("healthBar")
 		end
 	end
-	hpLeftHit.MouseButton1Click:Connect(function() playClick(1); clickHP("Left") end)
-	hpRightHit.MouseButton1Click:Connect(function() playClick(1); clickHP("Right") end)
-	hpTopHit.MouseButton1Click:Connect(function() playClick(1); clickHP("Top") end)
+	hpLeftHit.MouseButton1Click:Connect(function() clickHP("Left") end)
+	hpRightHit.MouseButton1Click:Connect(function() clickHP("Right") end)
+	hpTopHit.MouseButton1Click:Connect(function() clickHP("Top") end)
 
 	for _, z in ipairs({ hpLeftHit, hpRightHit, hpTopHit }) do
 		z.MouseEnter:Connect(function() hover.healthBar = true end)
@@ -2697,12 +2680,6 @@ function Container:AddESPPreview(o)
 		local boxOn = isOn("boxes")
 		boxStroke.Transparency = boxOn and 0 or (hover.boxes and 0.45 or 0.75)
 		boxStroke.Thickness    = boxOn and 1.5 or 1
-
-		-- Highlight
-        previewHighlight.BackgroundColor3 = state.boxColor
-        previewHighlight.Visible = state.enabled and (state.highlight or false)
-        previewHighlight.Position = UDim2.fromOffset(boxLeft, boxTop)
-        previewHighlight.Size = UDim2.fromOffset(boxW, boxH)
 
 		-- Name tag
 		nameTag.Position   = UDim2.fromOffset(boxLeft + boxW / 2, boxTop - 4)
@@ -2802,7 +2779,6 @@ function Container:AddESPPreview(o)
 
 	-- API
 	local api = {}
-	function api:SetHighlight(v)      state.highlight = v end
 	function api:SetEnabled(v)        state.enabled = v end
 	function api:SetBoxes(v)          state.boxes = v end
 	function api:SetTracers(v)        state.tracers = v end
