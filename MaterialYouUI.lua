@@ -1,16 +1,3 @@
---[[
-	Material You UI  —  библиотека GUI для Roblox (Luau)
-
-	Возможности:
-	  • Окно: шапка, вкладки (сайдбар), перетаскивание, свернуть/развернуть/закрыть
-	  • Элементы: Section, Toggle, Button, Slider (змейка), Dropdown, Keybind, Input, Folder, Label, ESP Preview
-	  • Темы: Dark, Light, Ocean, Rose, Forest, Sunset, Lavender
-	  • Вступительная анимация: прокрутка фигур -> свап -> окно
-	  • ESP Preview: интерактивный R6 манекен с ghost-режимом и клик-тумблерами
-	  • Все фигуры рисуются из Frame + UICorner (никаких ассетов не нужно)
-
-	Использование: см. example.lua
-]]
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
@@ -1722,7 +1709,7 @@ function Container:AddKeybind(o)
 	local key = o.Default
 	local listening = false
 
-	-- Создаем саму кнопку бинда
+	-- ВОТ ЗДЕСЬ СОЗДАЕТСЯ КНОПКА (если её не было, скрипт падал)
 	local btn = new("TextButton", {
 		Text = "",
 		AutoButtonColor = false,
@@ -1734,7 +1721,7 @@ function Container:AddKeybind(o)
 	})
 	corner(btn, FULL)
 
-	-- Текст на кнопке
+	-- Текст внутри кнопки
 	local lbl = text({
 		TextSize = 13,
 		TextXAlignment = Enum.TextXAlignment.Center,
@@ -1742,17 +1729,16 @@ function Container:AddKeybind(o)
 		Parent = btn,
 	})
 
+	-- Безопасное получение имени клавиши
+	local function getKeyName(k)
+		if type(k) == "string" then return k end
+		if typeof(k) == "EnumItem" then return k.Name end
+		return "None"
+	end
+
 	local function render(animate)
 		local C = win.Colors
-		-- Если key - это строка, берем её. Если Enum.KeyCode, берем Name
-		if type(key) == "string" then
-			lbl.Text = listening and "..." or key
-		elseif typeof(key) == "EnumItem" then
-			lbl.Text = listening and "..." or key.Name
-		else
-			lbl.Text = listening and "..." or "None"
-		end
-
+		lbl.Text = listening and "..." or getKeyName(key)
 		apply(btn, { BackgroundColor3 = listening and C.primary or C.surfaceContainer }, animate)
 		apply(lbl, { TextColor3 = listening and C.onPrimary or C.onSurface }, animate)
 	end
@@ -1761,9 +1747,11 @@ function Container:AddKeybind(o)
 	win:OnTheme(render)
 
 	local obj = { Row = row }
+
 	function obj.Get()
 		return key
 	end
+
 	function obj.Set(_, k, silent)
 		key = k
 		render(true)
@@ -1793,7 +1781,7 @@ function Container:AddKeybind(o)
 				obj:Set(input.KeyCode)
 			end
 		elseif not gp and key and input.KeyCode == key and o.OnPress then
-			task.spawn(o.OnPress)
+			task.sched(o.OnPress) -- Используем task.sched для надежности
 		end
 	end)
 
