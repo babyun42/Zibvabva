@@ -2439,35 +2439,24 @@ function Container:AddESPPreview(o)
 	})
 
 	text({
-		Text = "LIVE PREVIEW",
-		Font = Enum.Font.GothamBold, TextSize = 11,
-		Size = UDim2.new(1, 0, 0, 14),
-		Position = UDim2.fromOffset(2, 0),
-		Parent = holder,
+		Text = "LIVE PREVIEW", Font = Enum.Font.GothamBold, TextSize = 11,
+		Size = UDim2.new(1, 0, 0, 14), Position = UDim2.fromOffset(2, 0), Parent = holder,
 	})
 	win:Bind(holder:GetChildren()[#holder:GetChildren()], "TextColor3", "primary")
 
 	text({
-		Text = "Click any feature to toggle it on/off",
-		Font = Enum.Font.Gotham, TextSize = 11,
-		Size = UDim2.new(1, 0, 0, 14),
-		Position = UDim2.fromOffset(2, 14),
-		Parent = holder,
+		Text = "Click any feature to toggle it on/off", Font = Enum.Font.Gotham, TextSize = 11,
+		Size = UDim2.new(1, 0, 0, 14), Position = UDim2.fromOffset(2, 14), Parent = holder,
 	})
 	win:Bind(holder:GetChildren()[#holder:GetChildren()], "TextColor3", "onSurfaceVariant")
 
 	local viewFrame = new("Frame", {
-		Size = UDim2.new(1, 0, 1, -34),
-		Position = UDim2.fromOffset(0, 34),
-		BackgroundTransparency = 1, BorderSizePixel = 0,
-		ClipsDescendants = true,
-		Parent = holder,
+		Size = UDim2.new(1, 0, 1, -34), Position = UDim2.fromOffset(0, 34),
+		BackgroundTransparency = 1, BorderSizePixel = 0, ClipsDescendants = true, Parent = holder,
 	})
 
 	local vpf = new("ViewportFrame", {
-		Size = UDim2.fromScale(1, 1),
-		BackgroundTransparency = 1, BorderSizePixel = 0,
-		ZIndex = 1, Parent = viewFrame,
+		Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, BorderSizePixel = 0, ZIndex = 1, Parent = viewFrame,
 	})
 
 	-- === R6 манекен ===
@@ -2477,14 +2466,11 @@ function Container:AddESPPreview(o)
 
 	local function makePart(name, size, pos)
 		local p = new("Part", {
-			Name = name, Size = size, CFrame = CFrame.new(pos),
-			Anchored = true, CanCollide = false,
-			Material = Enum.Material.SmoothPlastic,
-			Color = bodyColor,
+			Name = name, Size = size, CFrame = CFrame.new(pos), Anchored = true, CanCollide = false,
+			Material = Enum.Material.SmoothPlastic, Color = bodyColor,
 			TopSurface = Enum.SurfaceType.Smooth, BottomSurface = Enum.SurfaceType.Smooth,
 			LeftSurface = Enum.SurfaceType.Smooth, RightSurface = Enum.SurfaceType.Smooth,
-			FrontSurface = Enum.SurfaceType.Smooth, BackSurface = Enum.SurfaceType.Smooth,
-			Parent = model,
+			FrontSurface = Enum.SurfaceType.Smooth, BackSurface = Enum.SurfaceType.Smooth, Parent = model,
 		})
 		table.insert(bodyParts, p)
 		return p
@@ -2506,91 +2492,59 @@ function Container:AddESPPreview(o)
 	local nameTag = text({
 		Text = "Player", Font = Enum.Font.GothamBold, TextSize = 12,
 		Size = UDim2.fromOffset(120, 16), AnchorPoint = Vector2.new(0.5, 1),
-		TextStrokeTransparency = 0, TextXAlignment = Enum.TextXAlignment.Center,
-		Visible = true, ZIndex = 5,
-		Parent = viewFrame,
+		TextStrokeTransparency = 0, TextXAlignment = Enum.TextXAlignment.Center, Visible = true, ZIndex = 5, Parent = viewFrame,
 	})
 
-	local boxFrame = new("Frame", {
-		BackgroundTransparency = 1, BorderSizePixel = 0,
-		Visible = true, ZIndex = 3, Parent = viewFrame,
-	})
+	local boxFrame = new("Frame", { BackgroundTransparency = 1, BorderSizePixel = 0, Visible = true, ZIndex = 3, Parent = viewFrame })
 	corner(boxFrame, 4)
 	local boxStroke = new("UIStroke", { Thickness = 1.5, Color = Color3.new(1,1,1), Parent = boxFrame })
 
 	local headDot = new("Frame", {
 		Size = UDim2.fromOffset(8, 8), AnchorPoint = Vector2.new(0.5, 0.5),
-		BackgroundColor3 = Color3.new(1,1,1), BorderSizePixel = 0,
-		Visible = true, ZIndex = 4, Parent = viewFrame,
+		BackgroundColor3 = Color3.new(1,1,1), BorderSizePixel = 0, Visible = true, ZIndex = 4, Parent = viewFrame,
 	})
 	corner(headDot, FULL)
 
 	local hbOutline = new("Frame", {
-		BackgroundColor3 = Color3.new(0, 0, 0), BackgroundTransparency = 0.3,
-		BorderSizePixel = 0, Visible = true, ZIndex = 4, Parent = viewFrame,
+		BackgroundColor3 = Color3.new(0, 0, 0), BackgroundTransparency = 0.3, BorderSizePixel = 0, Visible = true, ZIndex = 4, Parent = viewFrame,
 	})
 	corner(hbOutline, 2)
 	local hbFill = new("Frame", {
-		Size = UDim2.new(1, 0, 0.75, 0),
-		Position = UDim2.new(0, 0, 1, 0), AnchorPoint = Vector2.new(0, 1),
-		BackgroundColor3 = Color3.fromRGB(80, 220, 100),
-		BorderSizePixel = 0, Parent = hbOutline,
+		Size = UDim2.new(1, 0, 0.75, 0), Position = UDim2.new(0, 0, 1, 0), AnchorPoint = Vector2.new(0, 1),
+		BackgroundColor3 = Color3.fromRGB(80, 220, 100), BorderSizePixel = 0, Parent = hbOutline,
 	})
 	corner(hbFill, 2)
 
 	local tracer = new("Frame", {
 		Size = UDim2.fromOffset(2, 100), AnchorPoint = Vector2.new(0, 0),
-		BackgroundColor3 = Color3.new(1, 1, 1), BorderSizePixel = 0,
-		Visible = true, ZIndex = 3, Parent = viewFrame,
+		BackgroundColor3 = Color3.new(1, 1, 1), BorderSizePixel = 0, Visible = true, ZIndex = 3, Parent = viewFrame,
 	})
 
 	-- === Hit-zones ===
 	local function hitZone(z)
-		return new("TextButton", {
-			Text = "", AutoButtonColor = false,
-			BackgroundTransparency = 1, BorderSizePixel = 0,
-			ZIndex = z, Parent = viewFrame,
-		})
+		return new("TextButton", { Text = "", AutoButtonColor = false, BackgroundTransparency = 1, BorderSizePixel = 0, ZIndex = z, Parent = viewFrame })
 	end
 
 	local masterHit = hitZone(2)
-	local boxHitTop    = hitZone(10)
-	local boxHitLeft   = hitZone(10)
-	local boxHitRight  = hitZone(10)
-	local boxHitBottom = hitZone(10)
-	local hpLeftHit  = hitZone(14)
-	local hpRightHit = hitZone(14)
-	local hpTopHit   = hitZone(14)
-	local tracerHit  = hitZone(11)
-	local headDotHit = hitZone(12)
-	local nameTagHit = hitZone(12)
+	local boxHitTop, boxHitLeft, boxHitRight, boxHitBottom = hitZone(10), hitZone(10), hitZone(10), hitZone(10)
+	local hpLeftHit, hpRightHit, hpTopHit = hitZone(14), hitZone(14), hitZone(14)
+	local tracerHit, headDotHit, nameTagHit = hitZone(11), hitZone(12), hitZone(12)
 
-	-- === STATE (ТЕПЕРЬ ОПРЕДЕЛЕН ДО ИСПОЛЬЗОВАНИЯ) ===
+	-- === STATE ===
 	local state = {
-		enabled   = o.Enabled  == true,
-		boxes     = o.Boxes    ~= false,
-		tracers   = o.Tracers  == true,
-		headDot   = o.HeadDot  ~= false,
-		healthBar = o.HealthBar ~= false,
-		nameTag   = o.NameTag  ~= false,
-		rainbow   = o.Rainbow  == true,
-		boxColor    = o.BoxColor    or Color3.fromRGB(255, 255, 255),
-		tracerColor = o.TracerColor or Color3.fromRGB(255, 255, 255),
-		nameColor   = o.NameColor   or Color3.fromRGB(255, 255, 255),
-		healthPct   = o.HealthPercent or 0.75,
-		healthPos   = o.HealthPosition or "Right",
+		enabled   = o.Enabled  == true, boxes     = o.Boxes    ~= false,
+		tracers   = o.Tracers  == true, headDot   = o.HeadDot  ~= false,
+		healthBar = o.HealthBar ~= false, nameTag   = o.NameTag  ~= false,
+		rainbow   = o.Rainbow  == true, boxColor    = o.BoxColor    or Color3.fromRGB(255, 255, 255),
+		tracerColor = o.TracerColor or Color3.fromRGB(255, 255, 255), nameColor   = o.NameColor   or Color3.fromRGB(255, 255, 255),
+		healthPct   = o.HealthPercent or 0.75, healthPos   = o.HealthPosition or "Right",
 		nameText    = o.NameText or "Player",
 	}
-
 	local hover = { boxes = false, tracers = false, headDot = false, healthBar = false, nameTag = false }
 
 	local function isOn(key) return state.enabled and state[key] end
 
-	local KEY_MAP = {
-		boxes = "Boxes", tracers = "Tracers",
-		headDot = "HeadDot", healthBar = "HealthBar", nameTag = "NameTag",
-	}
-
+	local KEY_MAP = { boxes = "Boxes", tracers = "Tracers", headDot = "HeadDot", healthBar = "HealthBar", nameTag = "NameTag" }
 	local function toggleKey(key)
 		if not state.enabled then
 			state.enabled = true
@@ -2610,10 +2564,7 @@ function Container:AddESPPreview(o)
 		z.MouseEnter:Connect(function() hover.boxes = true end)
 		z.MouseLeave:Connect(function() hover.boxes = false end)
 	end
-	bindBoxToggle(boxHitTop)
-	bindBoxToggle(boxHitLeft)
-	bindBoxToggle(boxHitRight)
-	bindBoxToggle(boxHitBottom)
+	bindBoxToggle(boxHitTop); bindBoxToggle(boxHitLeft); bindBoxToggle(boxHitRight); bindBoxToggle(boxHitBottom)
 
 	tracerHit.MouseButton1Click:Connect(function() toggleKey("tracers") end)
 	tracerHit.MouseEnter:Connect(function() hover.tracers = true end)
@@ -2652,7 +2603,7 @@ function Container:AddESPPreview(o)
 
 	-- === Render loop ===
 	win:Animate(function()
-		if not isShown(viewFrame) then return end
+		if not isShown(viewFrame) or not state then return end
 		local W = viewFrame.AbsoluteSize.X
 		local H = viewFrame.AbsoluteSize.Y
 		if W < 20 or H < 20 then return end
@@ -2662,7 +2613,6 @@ function Container:AddESPPreview(o)
 		local modelBot = H * 0.86
 		local modelH   = modelBot - modelTop
 		local modelW   = modelH * 0.50
-
 		local boxLeft = cx - modelW / 2 - 3
 		local boxTop  = modelTop - 4
 		local boxW    = modelW + 6
@@ -2673,7 +2623,6 @@ function Container:AddESPPreview(o)
 		local tracerCol = state.rainbow and rainbowCol or state.tracerColor
 		local nameCol   = state.rainbow and rainbowCol or state.nameColor
 
-		-- Box
 		boxFrame.Position = UDim2.fromOffset(boxLeft, boxTop)
 		boxFrame.Size     = UDim2.fromOffset(boxW, boxH)
 		boxStroke.Color   = boxCol
@@ -2681,14 +2630,11 @@ function Container:AddESPPreview(o)
 		boxStroke.Transparency = boxOn and 0 or (hover.boxes and 0.45 or 0.75)
 		boxStroke.Thickness    = boxOn and 1.5 or 1
 
-		-- Name tag
 		nameTag.Position   = UDim2.fromOffset(boxLeft + boxW / 2, boxTop - 4)
 		nameTag.Text       = state.nameText
 		nameTag.TextColor3 = nameCol
-		local ntOn = isOn("nameTag")
-		nameTag.TextTransparency = ntOn and 0 or (hover.nameTag and 0.45 or 0.75)
+		nameTag.TextTransparency = isOn("nameTag") and 0 or (hover.nameTag and 0.45 or 0.75)
 
-		-- Head dot
 		local headCY = modelTop + modelH * 0.08
 		headDot.Position = UDim2.fromOffset(cx, headCY)
 		headDot.BackgroundColor3 = boxCol
@@ -2696,80 +2642,47 @@ function Container:AddESPPreview(o)
 		headDot.BackgroundTransparency = hdOn and 0 or (hover.headDot and 0.45 or 0.75)
 		headDot.Size = UDim2.fromOffset(hdOn and 8 or 7, hdOn and 8 or 7)
 
-		-- HP bar
 		local hp = math.clamp(state.healthPct, 0, 1)
 		hbFill.BackgroundColor3 = Color3.fromRGB(255, 0, 0):Lerp(Color3.fromRGB(0, 255, 0), hp)
 
 		if state.healthPos == "Right" then
-			hbOutline.AnchorPoint = Vector2.new(0, 0)
-			hbOutline.Position = UDim2.fromOffset(boxLeft + boxW + 3, boxTop)
-			hbOutline.Size = UDim2.fromOffset(4, boxH)
-			hbFill.Size = UDim2.new(1, 0, hp, 0)
-			hbFill.Position = UDim2.new(0, 0, 1, 0)
-			hbFill.AnchorPoint = Vector2.new(0, 1)
+			hbOutline.AnchorPoint = Vector2.new(0, 0); hbOutline.Position = UDim2.fromOffset(boxLeft + boxW + 3, boxTop)
+			hbOutline.Size = UDim2.fromOffset(4, boxH); hbFill.Size = UDim2.new(1, 0, hp, 0); hbFill.Position = UDim2.new(0, 0, 1, 0); hbFill.AnchorPoint = Vector2.new(0, 1)
 		elseif state.healthPos == "Left" then
-			hbOutline.AnchorPoint = Vector2.new(1, 0)
-			hbOutline.Position = UDim2.fromOffset(boxLeft - 3, boxTop)
-			hbOutline.Size = UDim2.fromOffset(4, boxH)
-			hbFill.Size = UDim2.new(1, 0, hp, 0)
-			hbFill.Position = UDim2.new(0, 0, 1, 0)
-			hbFill.AnchorPoint = Vector2.new(0, 1)
+			hbOutline.AnchorPoint = Vector2.new(1, 0); hbOutline.Position = UDim2.fromOffset(boxLeft - 3, boxTop)
+			hbOutline.Size = UDim2.fromOffset(4, boxH); hbFill.Size = UDim2.new(1, 0, hp, 0); hbFill.Position = UDim2.new(0, 0, 1, 0); hbFill.AnchorPoint = Vector2.new(0, 1)
 		else
-			hbOutline.AnchorPoint = Vector2.new(0, 1)
-			hbOutline.Position = UDim2.fromOffset(boxLeft, boxTop - 3)
-			hbOutline.Size = UDim2.fromOffset(boxW, 4)
-			hbFill.Size = UDim2.new(hp, 0, 1, 0)
-			hbFill.Position = UDim2.new(0, 0, 0, 0)
-			hbFill.AnchorPoint = Vector2.new(0, 0)
+			hbOutline.AnchorPoint = Vector2.new(0, 1); hbOutline.Position = UDim2.fromOffset(boxLeft, boxTop - 3)
+			hbOutline.Size = UDim2.fromOffset(boxW, 4); hbFill.Size = UDim2.new(hp, 0, 1, 0); hbFill.Position = UDim2.new(0, 0, 0, 0); hbFill.AnchorPoint = Vector2.new(0, 0)
 		end
 
-		local hpOn = isOn("healthBar")
-		local hpAlpha = hpOn and 0 or (hover.healthBar and 0.45 or 0.75)
+		local hpAlpha = isOn("healthBar") and 0 or (hover.healthBar and 0.45 or 0.75)
 		hbOutline.BackgroundTransparency = math.max(hpAlpha, 0.3)
 		hbFill.BackgroundTransparency = hpAlpha
 
-		-- Tracer
 		local tracerX = boxLeft + boxW + 14
 		tracer.Position = UDim2.fromOffset(tracerX, boxTop)
 		tracer.Size     = UDim2.fromOffset(2, boxH)
 		tracer.BackgroundColor3 = tracerCol
-		local trOn = isOn("tracers")
-		tracer.BackgroundTransparency = trOn and 0 or (hover.tracers and 0.45 or 0.75)
+		tracer.BackgroundTransparency = isOn("tracers") and 0 or (hover.tracers and 0.45 or 0.75)
 
-		-- Hit-zones positions
 		local BW = 8
-
-		masterHit.Position = UDim2.fromOffset(boxLeft + BW, boxTop + BW)
-		masterHit.Size     = UDim2.fromOffset(boxW - 2*BW, boxH - 2*BW)
-
-		boxHitTop.Position    = UDim2.fromOffset(boxLeft, boxTop)
-		boxHitTop.Size        = UDim2.fromOffset(boxW, BW)
-		boxHitBottom.Position = UDim2.fromOffset(boxLeft, boxTop + boxH - BW)
-		boxHitBottom.Size     = UDim2.fromOffset(boxW, BW)
-		boxHitLeft.Position   = UDim2.fromOffset(boxLeft, boxTop)
-		boxHitLeft.Size       = UDim2.fromOffset(BW, boxH)
-		boxHitRight.Position  = UDim2.fromOffset(boxLeft + boxW - BW, boxTop)
-		boxHitRight.Size      = UDim2.fromOffset(BW, boxH)
+		masterHit.Position = UDim2.fromOffset(boxLeft + BW, boxTop + BW); masterHit.Size = UDim2.fromOffset(boxW - 2*BW, boxH - 2*BW)
+		boxHitTop.Position = UDim2.fromOffset(boxLeft, boxTop); boxHitTop.Size = UDim2.fromOffset(boxW, BW)
+		boxHitBottom.Position = UDim2.fromOffset(boxLeft, boxTop + boxH - BW); boxHitBottom.Size = UDim2.fromOffset(boxW, BW)
+		boxHitLeft.Position = UDim2.fromOffset(boxLeft, boxTop); boxHitLeft.Size = UDim2.fromOffset(BW, boxH)
+		boxHitRight.Position = UDim2.fromOffset(boxLeft + boxW - BW, boxTop); boxHitRight.Size = UDim2.fromOffset(BW, boxH)
 
 		local HP_W = 8
-		hpLeftHit.Position  = UDim2.fromOffset(boxLeft - HP_W - 1, boxTop)
-		hpLeftHit.Size      = UDim2.fromOffset(HP_W, boxH)
-		hpRightHit.Position = UDim2.fromOffset(boxLeft + boxW + 1, boxTop)
-		hpRightHit.Size     = UDim2.fromOffset(HP_W, boxH)
-		hpTopHit.Position   = UDim2.fromOffset(boxLeft, boxTop - HP_W - 1)
-		hpTopHit.Size       = UDim2.fromOffset(boxW, HP_W)
+		hpLeftHit.Position = UDim2.fromOffset(boxLeft - HP_W - 1, boxTop); hpLeftHit.Size = UDim2.fromOffset(HP_W, boxH)
+		hpRightHit.Position = UDim2.fromOffset(boxLeft + boxW + 1, boxTop); hpRightHit.Size = UDim2.fromOffset(HP_W, boxH)
+		hpTopHit.Position = UDim2.fromOffset(boxLeft, boxTop - HP_W - 1); hpTopHit.Size = UDim2.fromOffset(boxW, HP_W)
 
-		tracerHit.Position = UDim2.fromOffset(tracerX - 4, boxTop)
-		tracerHit.Size     = UDim2.fromOffset(10, boxH)
-
-		headDotHit.Position = UDim2.fromOffset(cx - 12, headCY - 12)
-		headDotHit.Size     = UDim2.fromOffset(24, 24)
-
-		nameTagHit.Position = UDim2.fromOffset(boxLeft + boxW/2 - 50, boxTop - 22)
-		nameTagHit.Size     = UDim2.fromOffset(100, 18)
+		tracerHit.Position = UDim2.fromOffset(tracerX - 4, boxTop); tracerHit.Size = UDim2.fromOffset(10, boxH)
+		headDotHit.Position = UDim2.fromOffset(cx - 12, headCY - 12); headDotHit.Size = UDim2.fromOffset(24, 24)
+		nameTagHit.Position = UDim2.fromOffset(boxLeft + boxW/2 - 50, boxTop - 22); nameTagHit.Size = UDim2.fromOffset(100, 18)
 	end)
 
-	-- Тема
 	win:OnTheme(function(animate)
 		local col = win.Colors.onSurfaceVariant
 		for _, p in ipairs(bodyParts) do
@@ -2777,24 +2690,21 @@ function Container:AddESPPreview(o)
 		end
 	end)
 
-	-- API
 	local api = {}
-	function api:SetEnabled(v)        state.enabled = v end
-	function api:SetBoxes(v)          state.boxes = v end
-	function api:SetTracers(v)        state.tracers = v end
-	function api:SetHeadDot(v)        state.headDot = v end
-	function api:SetHealthBar(v)      state.healthBar = v end
-	function api:SetNameTag(v)        state.nameTag = v end
-	function api:SetRainbow(v)        state.rainbow = v end
-	function api:SetBoxColor(c)       state.boxColor = c end
-	function api:SetTracerColor(c)    state.tracerColor = c end
-	function api:SetNameColor(c)      state.nameColor = c end
-	function api:SetHealthPercent(p)  state.healthPct = p end
+	function api:SetEnabled(v) state.enabled = v end
+	function api:SetBoxes(v) state.boxes = v end
+	function api:SetTracers(v) state.tracers = v end
+	function api:SetHeadDot(v) state.headDot = v end
+	function api:SetHealthBar(v) state.healthBar = v end
+	function api:SetNameTag(v) state.nameTag = v end
+	function api:SetRainbow(v) state.rainbow = v end
+	function api:SetBoxColor(c) state.boxColor = c end
+	function api:SetTracerColor(c) state.tracerColor = c end
+	function api:SetNameColor(c) state.nameColor = c end
+	function api:SetHealthPercent(p) state.healthPct = p end
 	function api:SetHealthPosition(p) state.healthPos = p end
-	function api:SetNameText(t)       state.nameText = t end
-	function api:SetBodyColor(c)
-		for _, p in ipairs(bodyParts) do p.Color = c end
-	end
+	function api:SetNameText(t) state.nameText = t end
+	function api:SetBodyColor(c) for _, p in ipairs(bodyParts) do p.Color = c end end
 	return api
 end
 
