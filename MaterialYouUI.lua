@@ -1722,6 +1722,7 @@ function Container:AddKeybind(o)
 	local key = o.Default
 	local listening = false
 
+	-- Создаем саму кнопку бинда
 	local btn = new("TextButton", {
 		Text = "",
 		AutoButtonColor = false,
@@ -1732,6 +1733,8 @@ function Container:AddKeybind(o)
 		Parent = row,
 	})
 	corner(btn, FULL)
+
+	-- Текст на кнопке
 	local lbl = text({
 		TextSize = 13,
 		TextXAlignment = Enum.TextXAlignment.Center,
@@ -1739,19 +1742,20 @@ function Container:AddKeybind(o)
 		Parent = btn,
 	})
 
-	local pressed = false
-    local function render(animate)
-    	local C = win.Colors
-    	local size = pressed and 28 or (state and 24 or 16) -- при нажатии ползунок «набухает»
-    	apply(track, { BackgroundColor3 = state and C.primary or C.surfaceContainerHighest }, animate)
-    	apply(stroke, { Color = state and C.primary or C.outline }, animate)
-	    apply(thumb, {
-		    BackgroundColor3 = state and C.onPrimary or C.outline,
-	    	Size = UDim2.fromOffset(size, size),
-	    	Position = UDim2.new(0, state and 36 or 16, .5, 0),
-    	}, animate)
-	    apply(check.Scale, { Scale = state and 1 or 0 }, animate, .25) -- галочка проявляется внутри ползунка
-    end
+	local function render(animate)
+		local C = win.Colors
+		-- Если key - это строка, берем её. Если Enum.KeyCode, берем Name
+		if type(key) == "string" then
+			lbl.Text = listening and "..." or key
+		elseif typeof(key) == "EnumItem" then
+			lbl.Text = listening and "..." or key.Name
+		else
+			lbl.Text = listening and "..." or "None"
+		end
+
+		apply(btn, { BackgroundColor3 = listening and C.primary or C.surfaceContainer }, animate)
+		apply(lbl, { TextColor3 = listening and C.onPrimary or C.onSurface }, animate)
+	end
 
 	render(false)
 	win:OnTheme(render)
@@ -1769,11 +1773,11 @@ function Container:AddKeybind(o)
 	end
 
 	btn.MouseButton1Click:Connect(function()
-		playClick(1.05)
 		listening = true
 		win._listening = true
 		render(true)
 	end)
+
 	win:Connect(UserInputService.InputBegan, function(input, gp)
 		if listening then
 			if input.UserInputType ~= Enum.UserInputType.Keyboard then
@@ -1792,6 +1796,7 @@ function Container:AddKeybind(o)
 			task.spawn(o.OnPress)
 		end
 	end)
+
 	return obj
 end
 
