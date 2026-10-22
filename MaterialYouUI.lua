@@ -1709,7 +1709,6 @@ function Container:AddKeybind(o)
 	local key = o.Default
 	local listening = false
 
-	-- ВОТ ЗДЕСЬ СОЗДАЕТСЯ КНОПКА (если её не было, скрипт падал)
 	local btn = new("TextButton", {
 		Text = "",
 		AutoButtonColor = false,
@@ -1721,7 +1720,6 @@ function Container:AddKeybind(o)
 	})
 	corner(btn, FULL)
 
-	-- Текст внутри кнопки
 	local lbl = text({
 		TextSize = 13,
 		TextXAlignment = Enum.TextXAlignment.Center,
@@ -1729,16 +1727,9 @@ function Container:AddKeybind(o)
 		Parent = btn,
 	})
 
-	-- Безопасное получение имени клавиши
-	local function getKeyName(k)
-		if type(k) == "string" then return k end
-		if typeof(k) == "EnumItem" then return k.Name end
-		return "None"
-	end
-
 	local function render(animate)
 		local C = win.Colors
-		lbl.Text = listening and "..." or getKeyName(key)
+		lbl.Text = listening and "..." or keyName(key)
 		apply(btn, { BackgroundColor3 = listening and C.primary or C.surfaceContainer }, animate)
 		apply(lbl, { TextColor3 = listening and C.onPrimary or C.onSurface }, animate)
 	end
@@ -1781,7 +1772,7 @@ function Container:AddKeybind(o)
 				obj:Set(input.KeyCode)
 			end
 		elseif not gp and key and input.KeyCode == key and o.OnPress then
-			task.sched(o.OnPress) -- Используем task.sched для надежности
+			task.spawn(o.OnPress)
 		end
 	end)
 
