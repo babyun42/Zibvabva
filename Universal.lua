@@ -54,11 +54,7 @@ local function placeholderUnload()
 end
 GENV.__Zibvabva_Unload = placeholderUnload
 
-<<<<<<< HEAD
 local UI = loadstring(game:HttpGet("https://raw.githubusercontent.com/babyun42/Zibvabva/refs/heads/main/MaterialYouUI.lua?v=3"))()
-=======
-local UI = loadstring(game:HttpGet("https://raw.githubusercontent.com/babyun42/Zibvabva/refs/heads/main/MaterialYouUI.lua"))()
->>>>>>> 1add1008c018c6f0d3b619988db1958b90f29358
 
 --=====================================================================
 --  SERVICES
@@ -74,11 +70,8 @@ local Lighting          = game:GetService("Lighting")
 local Camera            = workspace.CurrentCamera
 local LocalPlayer       = Players.LocalPlayer
 local Mouse             = LocalPlayer:GetMouse()
-<<<<<<< HEAD
 local currentWalkSpeed  = 16
 local currentJumpPower  = 50
-=======
->>>>>>> 1add1008c018c6f0d3b619988db1958b90f29358
 
 --=====================================================================
 --  CONNECTION TRACKER
@@ -167,11 +160,7 @@ local function purgeAllZibvabvaHighlights()
     end)
 end
 
-<<<<<<< HEAD
 local flySpeed = 35
-=======
-local flySpeed = 60
->>>>>>> 1add1008c018c6f0d3b619988db1958b90f29358
 local isFlying = false
 local isNoclip = false
 local spinbotEnabled = false
@@ -206,7 +195,6 @@ local IsLocking = false
 local GetTarget
 
 --=====================================================================
-<<<<<<< HEAD
 --  FLIGHT (Синхронизация с UI + полет по камере)
 --=====================================================================
 local bodyGyro = Instance.new("BodyGyro")
@@ -241,39 +229,10 @@ local function onFlyStep()
 
     if moveDir.Magnitude > 0 then
         char:TranslateBy(moveDir.Unit * speedMultiplier)
-=======
---  FLIGHT
---=====================================================================
-local bodyVelocity = Instance.new("BodyVelocity")
-bodyVelocity.MaxForce = Vector3.new(1, 1, 1) * 999999
-bodyVelocity.Velocity = Vector3.zero
-
-local bodyGyro = Instance.new("BodyGyro")
-bodyGyro.MaxTorque = Vector3.new(1, 1, 1) * 999999
-bodyGyro.P = 15000
-bodyGyro.D = 100
-
-local function onFlyStep()
-    local char = LocalPlayer.Character
-    local hrp = char and char:FindFirstChild("HumanoidRootPart")
-    local hum = char and char:FindFirstChildOfClass("Humanoid")
-    if not hrp or not hum or not isFlying then return end
-    bodyGyro.CFrame = Camera.CFrame
-    local dir = Vector3.new(
-        (UserInputService:IsKeyDown(Enum.KeyCode.D) and 1 or 0) - (UserInputService:IsKeyDown(Enum.KeyCode.A) and 1 or 0),
-        (UserInputService:IsKeyDown(Enum.KeyCode.Space) and 1 or 0) - ((UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) or UserInputService:IsKeyDown(Enum.KeyCode.RightShift)) and 1 or 0),
-        (UserInputService:IsKeyDown(Enum.KeyCode.S) and 1 or 0) - (UserInputService:IsKeyDown(Enum.KeyCode.W) and 1 or 0)
-    )
-    if dir.Magnitude > 0 then
-        bodyVelocity.Velocity = Camera.CFrame:VectorToWorldSpace(dir.Unit * flySpeed)
-    else
-        bodyVelocity.Velocity = Vector3.zero
->>>>>>> 1add1008c018c6f0d3b619988db1958b90f29358
     end
 end
 
 local function setFlightState(state)
-<<<<<<< HEAD
         if isUnloaded then return end
     isFlying = state
 
@@ -315,23 +274,10 @@ local function setFlightState(state)
             end
         end
 
-=======
-    isFlying = state
-    local char = LocalPlayer.Character
-    local hrp = char and char:FindFirstChild("HumanoidRootPart")
-    local hum = char and char:FindFirstChildOfClass("Humanoid")
-    if isFlying then
-        if hrp and hum then
-            bodyVelocity.Parent = hrp
-            bodyGyro.Parent = hrp
-            hum:ChangeState(Enum.HumanoidStateType.Physics)
-        end
->>>>>>> 1add1008c018c6f0d3b619988db1958b90f29358
         if not flyConnection then
             flyConnection = RunService.RenderStepped:Connect(onFlyStep)
         end
     else
-<<<<<<< HEAD
         bodyGyro.Parent = nil
         bodyVelocity.Parent = nil
 
@@ -353,11 +299,6 @@ local function setFlightState(state)
             end
         end
 
-=======
-        bodyVelocity.Parent = nil
-        bodyGyro.Parent = nil
-        if hum then hum:ChangeState(Enum.HumanoidStateType.GettingUp) end
->>>>>>> 1add1008c018c6f0d3b619988db1958b90f29358
         if flyConnection then
             flyConnection:Disconnect()
             flyConnection = nil
@@ -365,7 +306,6 @@ local function setFlightState(state)
     end
 end
 
-<<<<<<< HEAD
 track(LocalPlayer.CharacterAdded:Connect(function(char)
     if isUnloaded then return end -- Если скрипт выгружен, ничего не делаем
 
@@ -406,13 +346,6 @@ local function setNoclipState(state)
         pcall(function() noclipToggle:Set(state, true) end)
     end
 
-=======
---=====================================================================
---  NOCLIP
---=====================================================================
-local function setNoclipState(state)
-    isNoclip = state
->>>>>>> 1add1008c018c6f0d3b619988db1958b90f29358
     if isNoclip then
         if not noclipConnection then
             noclipConnection = RunService.Stepped:Connect(function()
@@ -1448,7 +1381,6 @@ unloadScript = function()
     if isUnloaded then return end
     isUnloaded = true
 
-<<<<<<< HEAD
     -- 1. ПРИНУДИТЕЛЬНО СБРАСЫВАЕМ СКОРОСТЬ И ПРЫЖОК
     local char = LocalPlayer.Character
     if char then
@@ -1466,18 +1398,6 @@ unloadScript = function()
     Config.ESP_Enabled = false
     Config.Aimbot_Enabled = false
     Config.Highlight_Enabled = false
-=======
-    Config.ESP_Enabled = false
-    Config.Highlight_Enabled = false
-
-    -- ждём 1 кадр — RenderStepped гарантированно уже прошёл с выключенным флагом
-    task.wait()
-
-    -- сносим все Highlight
-    purgeAllZibvabvaHighlights()
-
-    Config.Aimbot_Enabled = false
->>>>>>> 1add1008c018c6f0d3b619988db1958b90f29358
     HitboxConfig.Enabled = false
     ResetHitboxes()
 
@@ -1489,19 +1409,12 @@ unloadScript = function()
     if freecamActive then ToggleFreecam(false) end
 
     infZoomEnabled = false
-<<<<<<< HEAD
     pcall(function() LocalPlayer.CameraMaxZoomDistance = originalMaxZoom end)
-=======
-    pcall(function()
-        LocalPlayer.CameraMaxZoomDistance = originalMaxZoom
-    end)
->>>>>>> 1add1008c018c6f0d3b619988db1958b90f29358
     spinbotEnabled = false
     InfiniteJumpEnabled = false
     clickTpEnabled = false
     flingActive = false
     flingAllActive = false
-<<<<<<< HEAD
 
     if Camera then Camera.FieldOfView = 70 end
     setGamma(0)
@@ -1523,58 +1436,6 @@ unloadScript = function()
     -- 5. ОТКЛЮЧАЕМ ВСЕ КОННЕКТЫ (кастомные бинды)
     untrackAll()
 
-=======
-    flingTargetActive = false
-
-    if Camera then
-        Camera.FieldOfView = 70
-    end
-    setGamma(0)
-    pcall(function()
-        Lighting.GlobalShadows = originalGlobalShadows
-    end)
-    FB.toggleActive = false
-    FB.keybindActive = false
-    FB.frames = {}
-    FB.accum = 0
-    FB.canRevert = true
-    local _c = LocalPlayer.Character
-    if _c then
-        local _h = _c:FindFirstChildWhichIsA("Humanoid")
-        if _h then
-            pcall(function() _h.PlatformStand = false end)
-        end
-    end
-    for p in pairs(ESPCache) do
-        removeESP(p)
-    end
-
-    pcall(function() ESPContainer:Destroy() end)
-    pcall(function() FOVGui:Destroy() end)
-
-    if Window and Window.Gui then
-        pcall(function() Window.Gui:Destroy() end)
-    end
-
-    triggerbotEnabled = false
-    if triggerbotHolding then
-        botMouse1Release()
-        triggerbotHolding = false
-    end
-
-    purgeAllZibvabvaHighlights()
-    task.delay(0.3, function()
-        purgeAllZibvabvaHighlights()
-    end)
-
-    untrackAll()
-
-    removeAllHighlights()
-    untrackAll()
-
-    purgeOrphanGuis()
-
->>>>>>> 1add1008c018c6f0d3b619988db1958b90f29358
     if GENV.__Zibvabva_Unload == unloadScript then
         GENV.__Zibvabva_Unload = nil
     end
@@ -1695,11 +1556,7 @@ end))
 Window = UI:CreateWindow({
     Title = "Zibvabva",
     Subtitle = "babyun42",
-<<<<<<< HEAD
     Version = "v1.0",
-=======
-    Version = "v0.7",
->>>>>>> 1add1008c018c6f0d3b619988db1958b90f29358
     Theme = "Dark",
     ToggleKey = Enum.KeyCode.CapsLock,
     LogoShape = "Flower",
@@ -1714,33 +1571,19 @@ local PlayerTab = Window:AddTab({ Name = "Player", Shape = "Circle" })
 
 local mov = PlayerTab:AddSection("Movement")
 mov:AddSlider({
-<<<<<<< HEAD
     Name = "WalkSpeed", Description = "Character walk speed",
     Min = 16, Max = 300, Default = 16, Increment = 1,
     Callback = function(v)
         currentWalkSpeed = v
-=======
-    Name = "WalkSpeed",
-    Description = "Character walk speed",
-    Min = 16, Max = 300, Default = 16, Increment = 1,
-    Callback = function(v)
->>>>>>> 1add1008c018c6f0d3b619988db1958b90f29358
         local h = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
         if h then h.WalkSpeed = v end
     end,
 })
 mov:AddSlider({
-<<<<<<< HEAD
     Name = "JumpPower", Description = "Character jump power",
     Min = 50, Max = 400, Default = 50, Increment = 1,
     Callback = function(v)
         currentJumpPower = v
-=======
-    Name = "JumpPower",
-    Description = "Character jump power",
-    Min = 50, Max = 400, Default = 50, Increment = 1,
-    Callback = function(v)
->>>>>>> 1add1008c018c6f0d3b619988db1958b90f29358
         local h = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
         if h then h.JumpPower = v end
     end,
@@ -1755,7 +1598,6 @@ mov:AddToggle({
 local pactions = PlayerTab:AddSection("Player Actions")
 
 local flightFolder = pactions:AddFolder({ Name = "Flight", Description = "Toggle flight mode" })
-<<<<<<< HEAD
 flyToggle = flightFolder:AddToggle({
     Name = "Enable Fly",
     Default = false,
@@ -1777,54 +1619,23 @@ flightFolder:AddKeybind({
     Default = Enum.KeyCode.F, -- Обязательно Enum.KeyCode!
     OnPress = function()
         setFlightState(not isFlying)
-=======
-flightFolder:AddToggle({
-    Name = "Enable Fly",
-    Default = false,
-    Callback = function(v) if isFlying ~= v then setFlightState(v) end end,
-})
-flightFolder:AddSlider({
-    Name = "Fly Speed",
-    Min = 20, Max = 300, Default = 60, Increment = 1,
-    Callback = function(v) flySpeed = v end,
-})
-flightFolder:AddKeybind({
-    Name = "Fly Keybind",
-    Default = Enum.KeyCode.F,
-    OnPress = function()
-        isFlying = not isFlying
-        setFlightState(isFlying)
->>>>>>> 1add1008c018c6f0d3b619988db1958b90f29358
     end,
 })
 
 local noclipFolder = pactions:AddFolder({ Name = "Noclip", Description = "Walk through walls" })
-<<<<<<< HEAD
 noclipToggle = noclipFolder:AddToggle({
     Name = "Enable Noclip",
     Default = false,
     Callback = function(v)
         if isNoclip ~= v then setNoclipState(v) end
     end
-=======
-noclipFolder:AddToggle({
-    Name = "Enable Noclip",
-    Default = false,
-    Callback = function(v) if isNoclip ~= v then setNoclipState(v) end end,
->>>>>>> 1add1008c018c6f0d3b619988db1958b90f29358
 })
 noclipFolder:AddKeybind({
     Name = "Noclip Keybind",
     Default = Enum.KeyCode.X,
-<<<<<<< HEAD
     Callback = function(k) end,
     OnPress = function()
         setNoclipState(not isNoclip)
-=======
-    OnPress = function()
-        isNoclip = not isNoclip
-        setNoclipState(isNoclip)
->>>>>>> 1add1008c018c6f0d3b619988db1958b90f29358
     end,
 })
 
