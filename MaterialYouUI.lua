@@ -1347,13 +1347,17 @@ function Container:AddSlider(o)
 	local GAP = 14
 	local MID = 16
 
-	local valLbl = text({
+	-- 🛑 ИЗМЕНЕНИЕ 1: TextLabel заменен на TextBox
+	local valLbl = new("TextBox", {
+		BackgroundTransparency = 1,
 		Font = Enum.Font.GothamBold,
 		TextSize = 14,
 		TextXAlignment = Enum.TextXAlignment.Right,
 		AnchorPoint = Vector2.new(1, 0),
 		Position = UDim2.new(1, -16, 0, 12),
 		Size = UDim2.fromOffset(80, 20),
+		Text = "",
+		ClearTextOnFocus = false,
 		Parent = row,
 	})
 	win:Bind(valLbl, "TextColor3", "primary")
@@ -1432,6 +1436,7 @@ function Container:AddSlider(o)
 		AnchorPoint = Vector2.new(.5, 1),
 		Position = UDim2.new(0, 0, 0, -6),
 		Size = UDim2.fromOffset(56, 26),
+		BackgroundColor3 = win.Colors.primaryContainer,
 		BorderSizePixel = 0,
 		Visible = false,
 		Parent = area,
@@ -1477,6 +1482,20 @@ function Container:AddSlider(o)
 	function obj.Get()
 		return value
 	end
+
+	-- 🛑 ИЗМЕНЕНИЕ 2: Обработка ввода с клавиатуры
+	valLbl.FocusLost:Connect(function(enterPressed)
+		local txt = valLbl.Text
+		if o.Suffix then
+			txt = txt:gsub(o.Suffix, "") -- Убираем приписку (если есть)
+		end
+		local num = tonumber(txt)
+		if num then
+			setValue(num, true) -- Применяем новое значение и двигаем ползунок
+		else
+			valLbl.Text = fmt(value) .. (o.Suffix or "") -- Возвращаем старое, если ввели бред
+		end
+	end)
 
 	win:Animate(function(dt)
 		if not isShown(area) then
@@ -1525,14 +1544,13 @@ function Container:AddSlider(o)
 	end
 	local function release()
 		dragging = false
-				bubble.Visible = false
+		bubble.Visible = false
 		tween(handle, .25, { Size = UDim2.fromOffset(18, 18) }, Back)
 	end
 	area.InputBegan:Connect(function(i)
 		if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
-		    playClick(1.1)
 			dragging = true
-						bubble.Visible = true
+			bubble.Visible = true
 			tween(handle, .2, { Size = UDim2.fromOffset(22, 22) }, Back)
 			fromInput(i.Position)
 		end
