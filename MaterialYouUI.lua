@@ -2860,31 +2860,17 @@ function Window:Destroy()
 		return
 	end
 	self.Destroyed = true
-
 	for _, c in ipairs(self._conns) do
-		pcall(function() c:Disconnect() end)
+		pcall(function()
+			c:Disconnect()
+		end)
 	end
-
 	if self.OnUnload then
 		task.spawn(self.OnUnload)
 	end
-
 	self.Gui:Destroy()
-
-	-- 🛑 Анимация выгрузки уведомлений
 	if self.ToastGui then
-		local toasts = self.ToastGui:GetDescendants()
-		for _, t in ipairs(toasts) do
-			if t:IsA("CanvasGroup") then
-				tween(t, .3, { Position = UDim2.fromOffset(-400, 0), GroupTransparency = 1 }, Quint, In)
-			end
-		end
-		-- Удаляем сам ScreenGui уведомлений только после того, как они улетят
-		task.delay(.35, function()
-			if self.ToastGui then
-				self.ToastGui:Destroy()
-			end
-		end)
+		self.ToastGui:Destroy()
 	end
 end
 
@@ -2914,6 +2900,7 @@ function Window:Notify(o)
 		Parent = slot,
 	})
 	corner(toast, 18)
+
 	win:Bind(toast, "BackgroundColor3", "surfaceContainerHighest")
 	local toastStroke = new("UIStroke", { Thickness = 1, Parent = toast })
 	win:Bind(toastStroke, "Color", "outlineVariant")
@@ -2942,6 +2929,7 @@ function Window:Notify(o)
 			icon.Root.Rotation = (icon.Root.Rotation + speedDegPerSec * dt) % 360
 		end
 	end)
+
 	icon.Root.Size = UDim2.fromScale(0.85, 0.85)
 	tween(icon.Root, .4, { Size = UDim2.fromScale(1, 1) }, Back, Out)
 
@@ -2986,12 +2974,19 @@ function Window:Notify(o)
 
 	local gone = false
 	local function dismiss()
-		if gone then return end
+		if gone then
+			return
+		end
 		gone = true
-		-- 🛑 ИЗМЕНЕНО: уезжает ВЛЕВО (-400) и растворяется
-		tween(toast, .3, { Position = UDim2.fromOffset(-400, 0), GroupTransparency = 1 }, Quint, In)
-		task.delay(.35, function()
-			if slot then slot:Destroy() end
+
+		-- 🛑 ИЗМЕНЕННАЯ АНИМАЦИЯ УХОДА:
+		-- Сдвигаем на 400 пикселей вправо (за край экрана) и плавно растворяем
+		tween(toast, .35, { Position = UDim2.fromOffset(400, 0), GroupTransparency = 1 }, Enum.EasingStyle.Quint, Enum.EasingDirection.In)
+
+		task.delay(.4, function()
+			if slot and slot.Parent then
+				slot:Destroy()
+			end
 		end)
 	end
 
