@@ -3453,12 +3453,11 @@ function UI:CreateWindow(o)
 		Name = "MaterialUI_Toasts",
 		ResetOnSpawn = false,
 		IgnoreGuiInset = true,
-		DisplayOrder = 1,
+		DisplayOrder = -100,
 		ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
 		Parent = Players.LocalPlayer:WaitForChild("PlayerGui")
 	})
 	win.ToastGui = toastGui
-
 	win.Toasts = new("Frame", {
 		Name = "Notifications",
 		BackgroundTransparency = 1,
