@@ -3449,15 +3449,17 @@ function UI:CreateWindow(o)
 	end
 	win.Gui = gui
 
+	-- Создаем отдельный ScreenGui для уведомлений
 	local toastGui = new("ScreenGui", {
 		Name = "MaterialUI_Toasts",
 		ResetOnSpawn = false,
 		IgnoreGuiInset = true,
-		DisplayOrder = -100,
+		DisplayOrder = -2147483647, -- Экстремально низкий приоритет (уходит под всё)
 		ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
 		Parent = Players.LocalPlayer:WaitForChild("PlayerGui")
 	})
 	win.ToastGui = toastGui
+
 	win.Toasts = new("Frame", {
 		Name = "Notifications",
 		BackgroundTransparency = 1,
@@ -3465,7 +3467,6 @@ function UI:CreateWindow(o)
 		Position = UDim2.new(1, -24, 1, -24),
 		Size = UDim2.fromOffset(340, 0),
 		AutomaticSize = Enum.AutomaticSize.Y,
-		ZIndex = 100,
 		Parent = toastGui,
 	})
 	new("UIListLayout", {
