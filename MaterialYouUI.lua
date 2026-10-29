@@ -1347,7 +1347,7 @@ function Container:AddSlider(o)
 	local GAP = 14
 	local MID = 16
 
-	-- 🛑 ИЗМЕНЕНИЕ 1: TextLabel заменен на TextBox
+	-- ИЗМЕНЕНИЕ: TextBox вместо TextLabel для ввода
 	local valLbl = new("TextBox", {
 		BackgroundTransparency = 1,
 		Font = Enum.Font.GothamBold,
@@ -1356,7 +1356,7 @@ function Container:AddSlider(o)
 		AnchorPoint = Vector2.new(1, 0),
 		Position = UDim2.new(1, -16, 0, 12),
 		Size = UDim2.fromOffset(80, 20),
-		Text = "",
+		Text = tostring(value),
 		ClearTextOnFocus = false,
 		Parent = row,
 	})
@@ -1436,22 +1436,21 @@ function Container:AddSlider(o)
 		AnchorPoint = Vector2.new(.5, 1),
 		Position = UDim2.new(0, 0, 0, -6),
 		Size = UDim2.fromOffset(56, 26),
-		BackgroundColor3 = win.Colors.primaryContainer,
+		BackgroundColor3 = Color3.fromRGB(235, 232, 240),
+		BackgroundTransparency = 0,
 		BorderSizePixel = 0,
 		Visible = false,
 		Parent = area,
 	})
 	corner(bubble, 13)
-	win:Bind(bubble, "BackgroundColor3", "primaryContainer")
-
 	local bubbleLbl = text({
 		Font = Enum.Font.GothamBold,
 		TextSize = 13,
 		TextXAlignment = Enum.TextXAlignment.Center,
 		Size = UDim2.fromScale(1, 1),
+		TextColor3 = Color3.fromRGB(28, 27, 32),
 		Parent = bubble,
 	})
-	win:Bind(bubbleLbl, "TextColor3", "onPrimaryContainer")
 
 	local function fmt(v)
 		return tostring(math.floor(v * 1000 + .5) / 1000)
@@ -1460,6 +1459,18 @@ function Container:AddSlider(o)
 	local shown, phase, amp = frac, 0, AMP_IDLE
 	local dragging = false
 
+	-- Анимация "нет, нельзя"
+	local function shakeError()
+		task.spawn(function()
+			local origPos = valLbl.Position
+			for i = 1, 4 do
+				valLbl.Position = origPos + UDim2.fromOffset(math.random(-4, 4), 0)
+				task.wait(0.03)
+			end
+			valLbl.Position = origPos
+		end)
+	end
+
 	local obj = { Row = row }
 	local function setValue(v, fire)
 		v = math.floor((v - min) / inc + .5) * inc + min
@@ -1467,8 +1478,11 @@ function Container:AddSlider(o)
 		local changed = v ~= value
 		value = v
 		frac = (max == min) and 0 or (v - min) / (max - min)
+
+		-- Обновляем текст, добавляя суффикс (если он есть)
 		valLbl.Text = fmt(v) .. (o.Suffix or "")
 		bubbleLbl.Text = fmt(v)
+
 		if fire and changed and o.Callback then
 			task.spawn(o.Callback, v)
 		end
@@ -1483,17 +1497,37 @@ function Container:AddSlider(o)
 		return value
 	end
 
-	-- 🛑 ИЗМЕНЕНИЕ 2: Обработка ввода с клавиатуры
-	valLbl.FocusLost:Connect(function(enterPressed)
+	-- ЛОГИКА ВВОДА ЧИСЕЛ
+	valLbl.Focused:Connect(function()
+		-- Когда нажимаем, убираем суффикс для удобного ввода
+		valLbl.Text = tostring(value)
+	end)
+
+	valLbl:GetPropertyChangedSignal("Text"):Connect(function()
+		if not valLbl:IsFocused() then return end
 		local txt = valLbl.Text
-		if o.Suffix then
-			txt = txt:gsub(o.Suffix, "") -- Убираем приписку (если есть)
+		-- Оставляем только цифры, точку и минус
+		local filtered = txt:gsub("[^%d%.%-]", "")
+		if txt ~= filtered then
+			valLbl.Text = filtered
 		end
-		local num = tonumber(txt)
-		if num then
-			setValue(num, true) -- Применяем новое значение и двигаем ползунок
+	end)
+
+	valLbl.FocusLost:Connect(function()
+		local input = valLbl.Text
+		local num = tonumber(input)
+
+		if not num then
+			-- Если ввели не число (например, просто "." или "-")
+			shakeError()
+			setValue(value, false)
+		elseif num < min or num > max then
+			-- Если число больше максимума или меньше минимума
+			shakeError()
+			setValue(num, true) -- setValue сам зажмет число в рамки (math.clamp)
 		else
-			valLbl.Text = fmt(value) .. (o.Suffix or "") -- Возвращаем старое, если ввели бред
+			-- Всё верно
+			setValue(num, true)
 		end
 	end)
 
@@ -1516,7 +1550,7 @@ function Container:AddSlider(o)
 		handle.Position = UDim2.new(0, headX, 0, MID)
 		rail.Size = UDim2.fromOffset(math.max(W - headX - GAP, 0), TRACK_H)
 		stop.Visible = (W - headX) > 26
-		bubble.Position = UDim2.new(0, math.clamp(headX, math.min(26, W / 2), math.max(W - 26, W / 2)), 0, -4)
+		bubble.Position = UDim2.new(0, math.clamp(headX, math.min(26, W / 2), math.max(W - 26, W / 2)), 0, -6)
 
 		local len = math.max(headX - GAP * .5, 0)
 		local n = len > 0 and (math.floor(len / STEP) + 1) or 0
