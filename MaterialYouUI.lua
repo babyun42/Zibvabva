@@ -2856,20 +2856,40 @@ function Window:Close()
 end
 
 function Window:Destroy()
-	if self.Destroyed then
-		return
-	end
+	if self.Destroyed then return end
 	self.Destroyed = true
+
+	-- Отключаем все коннекты
 	for _, c in ipairs(self._conns) do
-		pcall(function()
-			c:Disconnect()
-		end)
+		pcall(function() c:Disconnect() end)
 	end
+
 	if self.OnUnload then
 		task.spawn(self.OnUnload)
 	end
+
+	-- Удаляем главное окно
 	self.Gui:Destroy()
+
+	-- КРАСИВАЯ ВЫГРУЗКА УВЕДОМЛЕНИЙ
 	if self.ToastGui then
+		local hasToasts = false
+		for _, slot in ipairs(self.Toasts:GetChildren()) do
+			if slot:IsA("Frame") then
+				local toast = slot:FindFirstChildOfClass("CanvasGroup")
+				if toast then
+					hasToasts = true
+					-- Уезжают вправо с потерей прозрачности
+					tween(toast, .3, { Position = UDim2.new(1, 100, 0, 0), GroupTransparency = 1 }, Quint, In)
+				end
+			end
+		end
+
+		-- Ждем завершения анимации перед удалением GUI
+		if hasToasts then
+			task.wait(0.35)
+		end
+
 		self.ToastGui:Destroy()
 	end
 end
@@ -2900,7 +2920,6 @@ function Window:Notify(o)
 		Parent = slot,
 	})
 	corner(toast, 18)
-
 	win:Bind(toast, "BackgroundColor3", "surfaceContainerHighest")
 	local toastStroke = new("UIStroke", { Thickness = 1, Parent = toast })
 	win:Bind(toastStroke, "Color", "outlineVariant")
@@ -2974,19 +2993,12 @@ function Window:Notify(o)
 
 	local gone = false
 	local function dismiss()
-		if gone then
-			return
-		end
+		if gone then return end
 		gone = true
-
-		-- 🛑 ИЗМЕНЕННАЯ АНИМАЦИЯ УХОДА:
-		-- Сдвигаем на 400 пикселей вправо (за край экрана) и плавно растворяем
-		tween(toast, .35, { Position = UDim2.fromOffset(400, 0), GroupTransparency = 1 }, Enum.EasingStyle.Quint, Enum.EasingDirection.In)
-
-		task.delay(.4, function()
-			if slot and slot.Parent then
-				slot:Destroy()
-			end
+		-- АНИМАЦИЯ УЕЗДА ВПРАВО
+		tween(toast, .35, { Position = UDim2.new(1, 100, 0, 0), GroupTransparency = 1 }, Quint, In)
+		task.delay(.38, function()
+			if slot then slot:Destroy() end
 		end)
 	end
 
