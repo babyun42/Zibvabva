@@ -2869,6 +2869,9 @@ function Window:Destroy()
 		task.spawn(self.OnUnload)
 	end
 	self.Gui:Destroy()
+	if self.ToastGui then
+		self.ToastGui:Destroy() -- Удаляем уведомления
+	end
 end
 
 function Window:Notify(o)
@@ -3435,7 +3438,7 @@ function UI:CreateWindow(o)
 		Name = o.Name or "MaterialYouUI",
 		ResetOnSpawn = false,
 		IgnoreGuiInset = true,
-		DisplayOrder = 999,
+		DisplayOrder = 1,
 		ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
 	})
 	local ok = pcall(function()
@@ -3454,7 +3457,7 @@ function UI:CreateWindow(o)
 		Size = UDim2.fromOffset(340, 0),
 		AutomaticSize = Enum.AutomaticSize.Y,
 		ZIndex = 100,
-		Parent = gui,
+		Parent = toastGui,
 	})
 	new("UIListLayout", {
 		Padding = UDim.new(0, 8),
