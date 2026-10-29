@@ -1347,7 +1347,7 @@ function Container:AddSlider(o)
 	local GAP = 14
 	local MID = 16
 
-	-- ИЗМЕНЕНИЕ: TextBox вместо TextLabel для ввода
+	-- ИЗМЕНЕНИЕ: AutomaticSize.X делает кликабельную зону ровно по размеру цифр
 	local valLbl = new("TextBox", {
 		BackgroundTransparency = 1,
 		Font = Enum.Font.GothamBold,
@@ -1355,7 +1355,8 @@ function Container:AddSlider(o)
 		TextXAlignment = Enum.TextXAlignment.Right,
 		AnchorPoint = Vector2.new(1, 0),
 		Position = UDim2.new(1, -16, 0, 12),
-		Size = UDim2.fromOffset(80, 20),
+		Size = UDim2.new(0, 0, 0, 20),
+		AutomaticSize = Enum.AutomaticSize.X, -- Рамка ровно по тексту
 		Text = tostring(value),
 		ClearTextOnFocus = false,
 		Parent = row,
@@ -1463,7 +1464,8 @@ function Container:AddSlider(o)
 	local function shakeError()
 		task.spawn(function()
 			local origPos = valLbl.Position
-			for i = 1, 4 do
+			for i = 1, 5 do
+				-- Двигаем влево-вправо
 				valLbl.Position = origPos + UDim2.fromOffset(math.random(-4, 4), 0)
 				task.wait(0.03)
 			end
@@ -1506,10 +1508,26 @@ function Container:AddSlider(o)
 	valLbl:GetPropertyChangedSignal("Text"):Connect(function()
 		if not valLbl:IsFocused() then return end
 		local txt = valLbl.Text
-		-- Оставляем только цифры, точку и минус
-		local filtered = txt:gsub("[^%d%.%-]", "")
-		if txt ~= filtered then
-			valLbl.Text = filtered
+
+		-- ЖЕСТКИЙ ФИЛЬТР: убирает буквы, лишние точки и минусы
+		local newTxt = ""
+		local hasDot = false
+		local hasMinus = false
+		for i = 1, #txt do
+			local c = txt:sub(i,i)
+			if c:match("%d") then
+				newTxt = newTxt .. c
+			elseif c == "." and not hasDot then
+				newTxt = newTxt .. c
+				hasDot = true
+			elseif c == "-" and not hasMinus and i == 1 and min < 0 then
+				newTxt = newTxt .. c
+				hasMinus = true
+			end
+		end
+
+		if txt ~= newTxt then
+			valLbl.Text = newTxt
 		end
 	end)
 
@@ -1518,9 +1536,9 @@ function Container:AddSlider(o)
 		local num = tonumber(input)
 
 		if not num then
-			-- Если ввели не число (например, просто "." или "-")
+			-- Если пусто или введен только мусор
 			shakeError()
-			setValue(value, false)
+			setValue(value, false) -- Возвращаем старое значение
 		elseif num < min or num > max then
 			-- Если число больше максимума или меньше минимума
 			shakeError()
