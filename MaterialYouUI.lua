@@ -3438,7 +3438,7 @@ function UI:CreateWindow(o)
 		Name = o.Name or "MaterialYouUI",
 		ResetOnSpawn = false,
 		IgnoreGuiInset = true,
-		DisplayOrder = 1,
+		DisplayOrder = 999,
 		ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
 	})
 	local ok = pcall(function()
@@ -3448,6 +3448,16 @@ function UI:CreateWindow(o)
 		gui.Parent = Players.LocalPlayer:WaitForChild("PlayerGui")
 	end
 	win.Gui = gui
+
+	local toastGui = new("ScreenGui", {
+		Name = "MaterialUI_Toasts",
+		ResetOnSpawn = false,
+		IgnoreGuiInset = true,
+		DisplayOrder = 1,
+		ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
+		Parent = Players.LocalPlayer:WaitForChild("PlayerGui")
+	})
+	win.ToastGui = toastGui
 
 	win.Toasts = new("Frame", {
 		Name = "Notifications",
