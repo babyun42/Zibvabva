@@ -2860,17 +2860,31 @@ function Window:Destroy()
 		return
 	end
 	self.Destroyed = true
+
 	for _, c in ipairs(self._conns) do
-		pcall(function()
-			c:Disconnect()
-		end)
+		pcall(function() c:Disconnect() end)
 	end
+
 	if self.OnUnload then
 		task.spawn(self.OnUnload)
 	end
+
 	self.Gui:Destroy()
+
+	-- 🛑 Анимация выгрузки уведомлений
 	if self.ToastGui then
-		self.ToastGui:Destroy() -- Удаляем уведомления
+		local toasts = self.ToastGui:GetDescendants()
+		for _, t in ipairs(toasts) do
+			if t:IsA("CanvasGroup") then
+				tween(t, .3, { Position = UDim2.fromOffset(-400, 0), GroupTransparency = 1 }, Quint, In)
+			end
+		end
+		-- Удаляем сам ScreenGui уведомлений только после того, как они улетят
+		task.delay(.35, function()
+			if self.ToastGui then
+				self.ToastGui:Destroy()
+			end
+		end)
 	end
 end
 
@@ -2900,7 +2914,6 @@ function Window:Notify(o)
 		Parent = slot,
 	})
 	corner(toast, 18)
-	-- FIX: используем поверхность текущей темы, а не inverse
 	win:Bind(toast, "BackgroundColor3", "surfaceContainerHighest")
 	local toastStroke = new("UIStroke", { Thickness = 1, Parent = toast })
 	win:Bind(toastStroke, "Color", "outlineVariant")
@@ -2908,29 +2921,27 @@ function Window:Notify(o)
 
 	local iconBox = new("Frame", {
 		BackgroundTransparency = 1,
-		AnchorPoint = Vector2.new(0, 0.5),   -- ← центр по Y
-		Position = UDim2.new(0, 0, 0.5, 0),  -- ← прижат к 50% высоты тоста
+		AnchorPoint = Vector2.new(0, 0.5),
+		Position = UDim2.new(0, 0, 0.5, 0),
 		Size = UDim2.fromOffset(24, 24),
 		Parent = toast,
 	})
-	-- случайная фигура для каждой нотификации (если не указана явно)
+
 	local pickShape = o.Shape
 	if not pickShape then
 		local pool = UI.NotificationShapes or UI.ButtonShapes
 		pickShape = pool[math.random(#pool)]
 	end
 	local icon = makeShape(iconBox, pickShape, win.Colors.primaryContainer, { detail = "low" })
-	-- Плавное бесконечное вращение через RenderStepped
+
 	icon.Root.Rotation = 0
 	task.spawn(function()
-		local speedDegPerSec = 30   -- 30° в секунду → полный оборот за 12 сек
+		local speedDegPerSec = 30
 		while icon.Root and icon.Root.Parent ~= nil do
 			local dt = task.wait()
 			icon.Root.Rotation = (icon.Root.Rotation + speedDegPerSec * dt) % 360
 		end
 	end)
-
-	-- при появлении: подъём масштаба для живости
 	icon.Root.Size = UDim2.fromScale(0.85, 0.85)
 	tween(icon.Root, .4, { Size = UDim2.fromScale(1, 1) }, Back, Out)
 
@@ -2946,6 +2957,7 @@ function Window:Notify(o)
 		Parent = toast,
 	})
 	new("UIListLayout", { Padding = UDim.new(0, 2), SortOrder = Enum.SortOrder.LayoutOrder, Parent = stack })
+
 	if o.Title then
 		local t = text({
 			Text = o.Title,
@@ -2956,9 +2968,9 @@ function Window:Notify(o)
 			LayoutOrder = 1,
 			Parent = stack,
 		})
-		-- FIX: цвет текста = обычный, не inverse
 		win:Bind(t, "TextColor3", "onSurface")
 	end
+
 	local body = text({
 		Text = o.Text or "",
 		Font = Enum.Font.Gotham,
@@ -2974,15 +2986,15 @@ function Window:Notify(o)
 
 	local gone = false
 	local function dismiss()
-		if gone then
-			return
-		end
+		if gone then return end
 		gone = true
-		tween(toast, .28, { Position = UDim2.fromOffset(70, 0), GroupTransparency = 1 }, Quint, In)
-		task.delay(.32, function()
-			slot:Destroy()
+		-- 🛑 ИЗМЕНЕНО: уезжает ВЛЕВО (-400) и растворяется
+		tween(toast, .3, { Position = UDim2.fromOffset(-400, 0), GroupTransparency = 1 }, Quint, In)
+		task.delay(.35, function()
+			if slot then slot:Destroy() end
 		end)
 	end
+
 	toast.InputBegan:Connect(function(i)
 		if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
 			dismiss()
