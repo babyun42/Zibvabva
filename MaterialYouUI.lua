@@ -1773,6 +1773,168 @@ function Container:AddDropdown(o)
 	return obj
 end
 
+function Container:AddMultiDropdown(o)
+	local win = self.win
+	local row = makeRow(self, o, 150)
+	local options = o.Options or {}
+	local selected = o.Default or {}
+
+	local btn = new("TextButton", {
+		Text = "",
+		AutoButtonColor = false,
+		AnchorPoint = Vector2.new(1, .5),
+		Position = UDim2.new(1, -16, .5, 0),
+		Size = UDim2.fromOffset(140, 40),
+		BorderSizePixel = 0,
+		Parent = row,
+	})
+	corner(btn, FULL)
+	win:Bind(btn, "BackgroundColor3", "surfaceContainer")
+
+	local valueLbl = text({
+		Text = "Select...",
+		TextSize = 14,
+		Size = UDim2.new(1, -44, 1, 0),
+		Position = UDim2.fromOffset(16, 0),
+		TextTruncate = Enum.TextTruncate.AtEnd,
+		Parent = btn,
+	})
+	win:Bind(valueLbl, "TextColor3", "onSurface")
+
+	local chev = chevron(win, btn, "onSurfaceVariant")
+	chev.Position = UDim2.new(1, -22, .5, 0)
+
+	local function updateText()
+		local count = 0
+		for _, v in pairs(selected) do if v then count = count + 1 end end
+		if count == 0 then
+			valueLbl.Text = "Select..."
+		elseif count == 1 then
+			for k, v in pairs(selected) do if v then valueLbl.Text = k break end end
+		else
+			valueLbl.Text = count .. " selected"
+		end
+	end
+	updateText()
+
+	local obj = { Row = row }
+	function obj.Set(_, v, silent)
+		selected = v
+		updateText()
+		if not silent and o.Callback then task.spawn(o.Callback, selected) end
+	end
+	function obj.Get() return selected end
+	function obj.SetOptions(_, list) options = list end
+
+	local function open()
+		win:_closePopup()
+		local overlay = win.Overlay
+		overlay.Visible = true
+		local catcher = new("TextButton", {
+			Text = "", BackgroundTransparency = 1, Size = UDim2.fromScale(1, 1), ZIndex = 60, Parent = overlay,
+		})
+		local w = 200
+		local listH = 280
+		local pos = btn.AbsolutePosition - overlay.AbsolutePosition
+		local x = pos.X + btn.AbsoluteSize.X - w
+		local y = pos.Y + btn.AbsoluteSize.Y + 6
+		if y + listH > overlay.AbsoluteSize.Y - 8 then y = pos.Y - listH - 6 end
+
+		local popup = new("CanvasGroup", {
+			Position = UDim2.fromOffset(x, y),
+			Size = UDim2.fromOffset(w, listH),
+			GroupTransparency = 1,
+			BorderSizePixel = 0,
+			ZIndex = 61,
+			Parent = overlay,
+		})
+		corner(popup, 18)
+		win:Bind(popup, "BackgroundColor3", "surfaceContainerHighest")
+		local st = new("UIStroke", { Thickness = 1, Parent = popup })
+		win:Bind(st, "Color", "outlineVariant")
+
+		-- Поле поиска
+		local searchBoxFrame = new("Frame", { Size = UDim2.new(1, -16, 0, 32), Position = UDim2.fromOffset(8, 8), Parent = popup })
+		corner(searchBoxFrame, 8)
+		win:Bind(searchBoxFrame, "BackgroundColor3", "surfaceContainer")
+		local searchBox = new("TextBox", {
+			Size = UDim2.new(1, -16, 1, 0), BackgroundTransparency = 1, Position = UDim2.fromOffset(8, 0),
+			PlaceholderText = "Search...", Text = "", TextSize = 13,
+			TextXAlignment = Enum.TextXAlignment.Left, ClearTextOnFocus = false,
+			Parent = searchBoxFrame,
+		})
+		win:Bind(searchBox, "TextColor3", "onSurface")
+		win:Bind(searchBox, "PlaceholderColor3", "onSurfaceVariant")
+
+		-- Список игроков
+		local sc = new("ScrollingFrame", {
+			Position = UDim2.fromOffset(8, 48), Size = UDim2.new(1, -16, 1, -56),
+			BackgroundTransparency = 1, BorderSizePixel = 0, CanvasSize = UDim2.new(),
+			AutomaticCanvasSize = Enum.AutomaticSize.Y, ScrollBarThickness = 3, Parent = popup,
+		})
+		new("UIListLayout", { Padding = UDim.new(0, 2), SortOrder = Enum.SortOrder.LayoutOrder, Parent = sc })
+
+		local function populate()
+			for _, child in ipairs(sc:GetChildren()) do if child:IsA("TextButton") then child:Destroy() end end
+			for i, opt in ipairs(options) do
+				local isSel = selected[opt] == true
+				local it = new("TextButton", {
+					Text = "", AutoButtonColor = false, BorderSizePixel = 0,
+					BackgroundTransparency = isSel and 0 or 1,
+					Size = UDim2.new(1, 0, 0, 30), LayoutOrder = i, Parent = sc,
+				})
+				corner(it, 8)
+				win:Bind(it, "BackgroundColor3", isSel and "secondaryContainer" or "onSurface")
+				local tl = text({
+					Text = tostring(opt), TextSize = 13, Size = UDim2.new(1, -16, 1, 0),
+					Position = UDim2.fromOffset(8, 0), Parent = it,
+				})
+				win:Bind(tl, "TextColor3", isSel and "onSecondaryContainer" or "onSurface")
+
+				it.MouseButton1Click:Connect(function()
+					selected[opt] = not selected[opt]
+					if not selected[opt] then selected[opt] = nil end
+					populate()
+					updateText()
+					if o.Callback then task.spawn(o.Callback, selected) end
+				end)
+			end
+		end
+		populate()
+
+		-- Логика поиска
+		searchBox:GetPropertyChangedSignal("Text"):Connect(function()
+			local txt = searchBox.Text:lower()
+			for _, child in ipairs(sc:GetChildren()) do
+				if child:IsA("TextButton") then
+					local txtLbl = child:FindFirstChildWhichIsA("TextLabel")
+					if txtLbl then
+						child.Visible = string.find(txtLbl.Text:lower(), txt, 1, true) ~= nil
+					end
+				end
+			end
+		end)
+
+		tween(popup, .22, { GroupTransparency = 0 })
+		tween(chev, .2, { Rotation = 180 })
+
+		local closed = false
+		local function close()
+			if closed then return end
+			closed = true
+			tween(chev, .2, { Rotation = 0 })
+			local tw = tween(popup, .15, { GroupTransparency = 1 })
+			catcher:Destroy()
+			overlay.Active = false
+			tw.Completed:Once(function() popup:Destroy() if not win._popupClose then overlay.Visible = false end end)
+		end
+		win._popupClose = close
+		catcher.MouseButton1Click:Connect(function() win:_closePopup() end)
+	end
+	btn.MouseButton1Click:Connect(open)
+	return obj
+end
+
 function Container:AddKeybind(o)
 	local win = self.win
 	local row = makeRow(self, o, 120)
