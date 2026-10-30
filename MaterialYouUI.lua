@@ -1806,11 +1806,27 @@ function Container:AddMultiDropdown(o)
 
 	local function updateText()
 		local count = 0
-		for _, v in pairs(selected) do if v then count = count + 1 end end
+		local lastName = nil
+		for k, v in pairs(selected) do
+			if v then
+				count = count + 1
+				lastName = k
+			end
+		end
+
 		if count == 0 then
 			valueLbl.Text = "Select..."
 		elseif count == 1 then
-			for k, v in pairs(selected) do if v then valueLbl.Text = k break end end
+			-- Ищем DisplayName для этого значения
+			local displayName = lastName
+			for _, opt in ipairs(options) do
+				local val = type(opt) == "table" and opt.value or opt
+				if val == lastName then
+					displayName = type(opt) == "table" and opt.display or opt
+					break
+				end
+			end
+			valueLbl.Text = displayName
 		else
 			valueLbl.Text = count .. " selected"
 		end
@@ -1824,7 +1840,10 @@ function Container:AddMultiDropdown(o)
 		if not silent and o.Callback then task.spawn(o.Callback, selected) end
 	end
 	function obj.Get() return selected end
-	function obj.SetOptions(_, list) options = list end
+	function obj.SetOptions(_, list)
+		options = list
+		updateText()
+	end
 
 	local function open()
 		win:_closePopup()
@@ -1833,8 +1852,8 @@ function Container:AddMultiDropdown(o)
 		local catcher = new("TextButton", {
 			Text = "", BackgroundTransparency = 1, Size = UDim2.fromScale(1, 1), ZIndex = 60, Parent = overlay,
 		})
-		local w = 200
-		local listH = 280
+		local w = 220
+		local listH = 300
 		local pos = btn.AbsolutePosition - overlay.AbsolutePosition
 		local x = pos.X + btn.AbsoluteSize.X - w
 		local y = pos.Y + btn.AbsoluteSize.Y + 6
@@ -1866,7 +1885,7 @@ function Container:AddMultiDropdown(o)
 		win:Bind(searchBox, "TextColor3", "onSurface")
 		win:Bind(searchBox, "PlaceholderColor3", "onSurfaceVariant")
 
-		-- Список игроков
+		-- Список
 		local sc = new("ScrollingFrame", {
 			Position = UDim2.fromOffset(8, 48), Size = UDim2.new(1, -16, 1, -56),
 			BackgroundTransparency = 1, BorderSizePixel = 0, CanvasSize = UDim2.new(),
@@ -1877,23 +1896,26 @@ function Container:AddMultiDropdown(o)
 		local function populate()
 			for _, child in ipairs(sc:GetChildren()) do if child:IsA("TextButton") then child:Destroy() end end
 			for i, opt in ipairs(options) do
-				local isSel = selected[opt] == true
+				local optVal = type(opt) == "table" and opt.value or opt
+				local optDisp = type(opt) == "table" and opt.display or opt
+
+				local isSel = selected[optVal] == true
 				local it = new("TextButton", {
 					Text = "", AutoButtonColor = false, BorderSizePixel = 0,
 					BackgroundTransparency = isSel and 0 or 1,
-					Size = UDim2.new(1, 0, 0, 30), LayoutOrder = i, Parent = sc,
+					Size = UDim2.new(1, 0, 0, 32), LayoutOrder = i, Parent = sc,
 				})
 				corner(it, 8)
 				win:Bind(it, "BackgroundColor3", isSel and "secondaryContainer" or "onSurface")
 				local tl = text({
-					Text = tostring(opt), TextSize = 13, Size = UDim2.new(1, -16, 1, 0),
+					Text = tostring(optDisp), TextSize = 13, Size = UDim2.new(1, -16, 1, 0),
 					Position = UDim2.fromOffset(8, 0), Parent = it,
 				})
 				win:Bind(tl, "TextColor3", isSel and "onSecondaryContainer" or "onSurface")
 
 				it.MouseButton1Click:Connect(function()
-					selected[opt] = not selected[opt]
-					if not selected[opt] then selected[opt] = nil end
+					selected[optVal] = not selected[optVal]
+					if not selected[optVal] then selected[optVal] = nil end
 					populate()
 					updateText()
 					if o.Callback then task.spawn(o.Callback, selected) end
