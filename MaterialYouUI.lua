@@ -2515,7 +2515,7 @@ function Container:AddESPPreview(o)
 	win:Bind(holder:GetChildren()[#holder:GetChildren()], "TextColor3", "primary")
 
 	text({
-		Text = "Click any feature to toggle it on/off", Font = Enum.Font.Gotham, TextSize = 11,
+		Text = "Click the character to toggle Highlight", Font = Enum.Font.Gotham, TextSize = 11,
 		Size = UDim2.new(1, 0, 0, 14), Position = UDim2.fromOffset(2, 14), Parent = holder,
 	})
 	win:Bind(holder:GetChildren()[#holder:GetChildren()], "TextColor3", "onSurfaceVariant")
@@ -2533,6 +2533,15 @@ function Container:AddESPPreview(o)
 	local model = new("Model", { Name = "Mannequin", Parent = vpf })
 	local bodyColor = win.Colors.onSurfaceVariant
 	local bodyParts = {}
+
+	-- 3D Highlight для манекена
+	local vpfHighlight = new("Highlight", {
+		Parent = model,
+		DepthMode = Enum.HighlightDepthMode.AlwaysOnTop,
+		FillTransparency = 0.4,
+		OutlineTransparency = 0, -- Тонкий контур
+		Enabled = false,
+	})
 
 	local function makePart(name, size, pos)
 		local p = new("Part", {
@@ -2565,7 +2574,9 @@ function Container:AddESPPreview(o)
 		TextStrokeTransparency = 0, TextXAlignment = Enum.TextXAlignment.Center, Visible = true, ZIndex = 5, Parent = viewFrame,
 	})
 
-	local boxFrame = new("Frame", { BackgroundTransparency = 1, BorderSizePixel = 0, Visible = true, ZIndex = 3, Parent = viewFrame })
+	local boxFrame = new("Frame", {
+		BackgroundTransparency = 1, BorderSizePixel = 0, Visible = true, ZIndex = 3, Parent = viewFrame,
+	})
 	corner(boxFrame, 4)
 	local boxStroke = new("UIStroke", { Thickness = 1.5, Color = Color3.new(1,1,1), Parent = boxFrame })
 
@@ -2592,7 +2603,10 @@ function Container:AddESPPreview(o)
 
 	-- === Hit-zones ===
 	local function hitZone(z)
-		return new("TextButton", { Text = "", AutoButtonColor = false, BackgroundTransparency = 1, BorderSizePixel = 0, ZIndex = z, Parent = viewFrame })
+		return new("TextButton", {
+			Text = "", AutoButtonColor = false, BackgroundTransparency = 1, BorderSizePixel = 0,
+			ZIndex = z, Parent = viewFrame,
+		})
 	end
 
 	local masterHit = hitZone(2)
@@ -2600,21 +2614,25 @@ function Container:AddESPPreview(o)
 	local hpLeftHit, hpRightHit, hpTopHit = hitZone(14), hitZone(14), hitZone(14)
 	local tracerHit, headDotHit, nameTagHit = hitZone(11), hitZone(12), hitZone(12)
 
+	-- Зона клика прямо по человечку (для Highlight)
+	local highlightHit = hitZone(15)
+
 	-- === STATE ===
 	local state = {
 		enabled   = o.Enabled  == true, boxes     = o.Boxes    ~= false,
 		tracers   = o.Tracers  == true, headDot   = o.HeadDot  ~= false,
 		healthBar = o.HealthBar ~= false, nameTag   = o.NameTag  ~= false,
+		highlight = o.Highlight == true, -- Новое состояние
 		rainbow   = o.Rainbow  == true, boxColor    = o.BoxColor    or Color3.fromRGB(255, 255, 255),
 		tracerColor = o.TracerColor or Color3.fromRGB(255, 255, 255), nameColor   = o.NameColor   or Color3.fromRGB(255, 255, 255),
 		healthPct   = o.HealthPercent or 0.75, healthPos   = o.HealthPosition or "Right",
 		nameText    = o.NameText or "Player",
 	}
-	local hover = { boxes = false, tracers = false, headDot = false, healthBar = false, nameTag = false }
+	local hover = { boxes = false, tracers = false, headDot = false, healthBar = false, nameTag = false, highlight = false }
 
 	local function isOn(key) return state.enabled and state[key] end
 
-	local KEY_MAP = { boxes = "Boxes", tracers = "Tracers", headDot = "HeadDot", healthBar = "HealthBar", nameTag = "NameTag" }
+	local KEY_MAP = { boxes = "Boxes", tracers = "Tracers", headDot = "HeadDot", healthBar = "HealthBar", nameTag = "NameTag", highlight = "Highlight" }
 	local function toggleKey(key)
 		if not state.enabled then
 			state.enabled = true
@@ -2628,6 +2646,10 @@ function Container:AddESPPreview(o)
 		state.enabled = not state.enabled
 		if o.OnToggle then o.OnToggle("Enabled", state.enabled) end
 	end)
+
+	highlightHit.MouseButton1Click:Connect(function() toggleKey("highlight") end)
+	highlightHit.MouseEnter:Connect(function() hover.highlight = true end)
+	highlightHit.MouseLeave:Connect(function() hover.highlight = false end)
 
 	local function bindBoxToggle(z)
 		z.MouseButton1Click:Connect(function() toggleKey("boxes") end)
@@ -2693,6 +2715,20 @@ function Container:AddESPPreview(o)
 		local tracerCol = state.rainbow and rainbowCol or state.tracerColor
 		local nameCol   = state.rainbow and rainbowCol or state.nameColor
 
+		-- === Визуал Highlight ===
+		local hlActive = isOn("highlight") or (hover.highlight and not state.highlight)
+		vpfHighlight.Enabled = isOn("highlight")
+		vpfHighlight.FillColor = boxCol
+		vpfHighlight.OutlineColor = boxCol
+		vpfHighlight.FillTransparency = hover.highlight and 0.2 or 0.5
+
+		-- Меняем цвет тела (белый/серый)
+		local targetColor = hlActive and Color3.fromRGB(240, 240, 240) or win.Colors.onSurfaceVariant
+		for _, p in ipairs(bodyParts) do
+			p.Color = p.Color:Lerp(targetColor, 0.15)
+		end
+
+		-- Box
 		boxFrame.Position = UDim2.fromOffset(boxLeft, boxTop)
 		boxFrame.Size     = UDim2.fromOffset(boxW, boxH)
 		boxStroke.Color   = boxCol
@@ -2700,11 +2736,13 @@ function Container:AddESPPreview(o)
 		boxStroke.Transparency = boxOn and 0 or (hover.boxes and 0.45 or 0.75)
 		boxStroke.Thickness    = boxOn and 1.5 or 1
 
+		-- Name tag
 		nameTag.Position   = UDim2.fromOffset(boxLeft + boxW / 2, boxTop - 4)
 		nameTag.Text       = state.nameText
 		nameTag.TextColor3 = nameCol
 		nameTag.TextTransparency = isOn("nameTag") and 0 or (hover.nameTag and 0.45 or 0.75)
 
+		-- Head dot
 		local headCY = modelTop + modelH * 0.08
 		headDot.Position = UDim2.fromOffset(cx, headCY)
 		headDot.BackgroundColor3 = boxCol
@@ -2712,6 +2750,7 @@ function Container:AddESPPreview(o)
 		headDot.BackgroundTransparency = hdOn and 0 or (hover.headDot and 0.45 or 0.75)
 		headDot.Size = UDim2.fromOffset(hdOn and 8 or 7, hdOn and 8 or 7)
 
+		-- HP bar
 		local hp = math.clamp(state.healthPct, 0, 1)
 		hbFill.BackgroundColor3 = Color3.fromRGB(255, 0, 0):Lerp(Color3.fromRGB(0, 255, 0), hp)
 
@@ -2730,14 +2769,21 @@ function Container:AddESPPreview(o)
 		hbOutline.BackgroundTransparency = math.max(hpAlpha, 0.3)
 		hbFill.BackgroundTransparency = hpAlpha
 
+		-- Tracer
 		local tracerX = boxLeft + boxW + 14
 		tracer.Position = UDim2.fromOffset(tracerX, boxTop)
 		tracer.Size     = UDim2.fromOffset(2, boxH)
 		tracer.BackgroundColor3 = tracerCol
 		tracer.BackgroundTransparency = isOn("tracers") and 0 or (hover.tracers and 0.45 or 0.75)
 
+		-- Hit-zones positions
 		local BW = 8
 		masterHit.Position = UDim2.fromOffset(boxLeft + BW, boxTop + BW); masterHit.Size = UDim2.fromOffset(boxW - 2*BW, boxH - 2*BW)
+
+		-- Зона клика по телу (чуть меньше самого бокса, чтобы не мешать рамкам)
+		highlightHit.Position = UDim2.fromOffset(boxLeft + 4, boxTop + 4)
+		highlightHit.Size = UDim2.fromOffset(boxW - 8, boxH - 8)
+
 		boxHitTop.Position = UDim2.fromOffset(boxLeft, boxTop); boxHitTop.Size = UDim2.fromOffset(boxW, BW)
 		boxHitBottom.Position = UDim2.fromOffset(boxLeft, boxTop + boxH - BW); boxHitBottom.Size = UDim2.fromOffset(boxW, BW)
 		boxHitLeft.Position = UDim2.fromOffset(boxLeft, boxTop); boxHitLeft.Size = UDim2.fromOffset(BW, boxH)
@@ -2753,11 +2799,9 @@ function Container:AddESPPreview(o)
 		nameTagHit.Position = UDim2.fromOffset(boxLeft + boxW/2 - 50, boxTop - 22); nameTagHit.Size = UDim2.fromOffset(100, 18)
 	end)
 
+	-- Тема
 	win:OnTheme(function(animate)
-		local col = win.Colors.onSurfaceVariant
-		for _, p in ipairs(bodyParts) do
-			if animate then tween(p, .3, { Color = col }) else p.Color = col end
-		end
+		-- Убрали принудительное изменение цвета, так как теперь им управляет Highlight
 	end)
 
 	local api = {}
@@ -2767,6 +2811,7 @@ function Container:AddESPPreview(o)
 	function api:SetHeadDot(v) state.headDot = v end
 	function api:SetHealthBar(v) state.healthBar = v end
 	function api:SetNameTag(v) state.nameTag = v end
+	function api:SetHighlight(v) state.highlight = v end
 	function api:SetRainbow(v) state.rainbow = v end
 	function api:SetBoxColor(c) state.boxColor = c end
 	function api:SetTracerColor(c) state.tracerColor = c end
