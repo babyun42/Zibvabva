@@ -3879,17 +3879,28 @@ function UI:CreateWindow(o)
 
 	-- ============ RESIZE HANDLES ============
 	local MIN_W, MIN_H = 500, 400
-	local HANDLE_THICK = 16
 	local isResizing = false
 	local resizeStartMouse, resizeStartSize, resizeStartPos
 	local resizeDirX, resizeDirY = 0, 0
+	local resizeHandles = {}
 
-	local function addResizeHandle(name, ax, ay, size, isX, isY, dx, dy)
+	local function addResizeHandle(name, x, y, ax, ay, isX, isY, dx, dy, isCorner)
+		-- Зона клика (хитбокс). Она заходит и внутрь, и наружу окна, чтобы было удобно хватать.
+		local hitSize = isCorner and UDim2.fromOffset(24, 24) or (isX and UDim2.fromOffset(20, 30) or UDim2.fromOffset(30, 20))
+		local px, py = 0, 0
+		if isCorner then
+			px, py = dx * 12, dy * 12
+		elseif isX then
+			px = dx * 10
+		elseif isY then
+			py = dy * 10
+		end
+
 		local h = new("TextButton", {
-			Name = name,
+			Name = "ResizeHit_" .. name,
 			AnchorPoint = Vector2.new(ax, ay),
-			Position = UDim2.new(ax, 0, ay, 0),
-			Size = size,
+			Position = UDim2.new(x, px, y, py),
+			Size = hitSize,
 			BackgroundTransparency = 1,
 			Text = "",
 			AutoButtonColor = false,
@@ -3897,26 +3908,29 @@ function UI:CreateWindow(o)
 			ZIndex = 10
 		})
 
-		-- Белая подсказка (кружок для углов, палочка для краев)
+		-- Визуальная подсказка (вынесена СНАРУЖИ окна)
+		local visSize = isCorner and UDim2.fromOffset(8, 8) or (isX and UDim2.fromOffset(4, 20) or UDim2.fromOffset(20, 4))
+		local vx, vy = 0, 0
+		if isCorner then
+			vx, vy = dx * -4, dy * -4
+		elseif isX then
+			vx = dx * -4
+		elseif isY then
+			vy = dy * -4
+		end
+
 		local vis = new("Frame", {
-			AnchorPoint = Vector2.new(0.5, 0.5),
-			Position = UDim2.fromScale(0.5, 0.5),
-			Size = UDim2.fromOffset(isX and (isY and 8 or 4) or 24, isY and (isX and 8 or 4) or 24),
+			Name = "ResizeVis_" .. name,
+			AnchorPoint = Vector2.new(ax, ay),
+			Position = UDim2.new(x, vx, y, vy),
+			Size = visSize,
 			BackgroundColor3 = Color3.new(1, 1, 1),
-			BackgroundTransparency = 1, -- Скрыто по умолчанию
+			BackgroundTransparency = 1,
 			BorderSizePixel = 0,
-			Parent = h
+			Parent = main,
+			ZIndex = 20
 		})
 		corner(vis, FULL)
-
-		h.MouseEnter:Connect(function()
-			tween(vis, .15, { BackgroundTransparency = 0.3 })
-		end)
-		h.MouseLeave:Connect(function()
-			if not isResizing then
-				tween(vis, .2, { BackgroundTransparency = 1 })
-			end
-		end)
 
 		h.InputBegan:Connect(function(input)
 			if input.UserInputType == Enum.UserInputType.MouseButton1 then
@@ -3926,21 +3940,41 @@ function UI:CreateWindow(o)
 				resizeStartPos = main.Position
 				resizeDirX = dx
 				resizeDirY = dy
-				tween(vis, .1, { BackgroundTransparency = 0 })
 			end
 		end)
+
+		table.insert(resizeHandles, { Hit = h, Vis = vis })
 	end
 
 	-- Создаем 8 зон
-	addResizeHandle("ResizeTL", 0, 0, UDim2.fromOffset(HANDLE_THICK, HANDLE_THICK), true, true, -1, -1)
-	addResizeHandle("ResizeTR", 1, 0, UDim2.fromOffset(HANDLE_THICK, HANDLE_THICK), true, true, 1, -1)
-	addResizeHandle("ResizeBL", 0, 1, UDim2.fromOffset(HANDLE_THICK, HANDLE_THICK), true, true, -1, 1)
-	addResizeHandle("ResizeBR", 1, 1, UDim2.fromOffset(HANDLE_THICK, HANDLE_THICK), true, true, 1, 1)
+	addResizeHandle("TL", 0, 0, 1, 1, true, true, -1, -1, true)
+	addResizeHandle("TR", 1, 0, 0, 1, true, true, 1, -1, true)
+	addResizeHandle("BL", 0, 1, 1, 0, true, true, -1, 1, true)
+	addResizeHandle("BR", 1, 1, 0, 0, true, true, 1, 1, true)
+	addResizeHandle("T", 0.5, 0, 0.5, 1, false, true, 0, -1, false)
+	addResizeHandle("B", 0.5, 1, 0.5, 0, false, true, 0, 1, false)
+	addResizeHandle("L", 0, 0.5, 1, 0.5, true, false, -1, 0, false)
+	addResizeHandle("R", 1, 0.5, 0, 0.5, true, false, 1, 0, false)
 
-	addResizeHandle("ResizeT", .5, 0, UDim2.new(1, -HANDLE_THICK*2, 0, HANDLE_THICK), false, true, 0, -1)
-	addResizeHandle("ResizeB", .5, 1, UDim2.new(1, -HANDLE_THICK*2, 0, HANDLE_THICK), false, true, 0, 1)
-	addResizeHandle("ResizeL", 0, .5, UDim2.new(0, HANDLE_THICK, 1, -HANDLE_THICK*2), true, false, -1, 0)
-	addResizeHandle("ResizeR", 1, .5, UDim2.new(0, HANDLE_THICK, 1, -HANDLE_THICK*2), true, false, 1, 0)
+	-- Плавное проявление при приближении мыши
+	win:Animate(function()
+		local mouse = UserInputService:GetMouseLocation()
+		for _, data in ipairs(resizeHandles) do
+			local h = data.Hit
+			local v = data.Vis
+			-- Находим центр хитбокса
+			local center = Vector2.new(h.AbsolutePosition.X + h.AbsoluteSize.X/2, h.AbsolutePosition.Y + h.AbsoluteSize.Y/2)
+			local dist = (mouse - center).Magnitude
+
+			-- Если мышь в радиусе 50 пикселей, начинаем проявлять
+			local alpha = math.clamp(1 - (dist - 15) / 40, 0, 1)
+			if alpha > 0 then
+				v.BackgroundTransparency = 1 - (alpha * 0.8) -- Максимальная видимость 20% прозрачности
+			else
+				v.BackgroundTransparency = 1
+			end
+		end
+	end)
 	-- =========================================
 
 	local header = new("Frame", {
@@ -4061,39 +4095,27 @@ function UI:CreateWindow(o)
 			local newX = resizeStartPos.X.Offset
 			local newY = resizeStartPos.Y.Offset
 
-			if resizeDirX == -1 then -- Тянем влево
+			if resizeDirX == -1 then
 				local dw = -delta.X
 				newW = newW + dw
-				if newW < MIN_W then
-					dw = MIN_W - resizeStartSize.X
-					newW = MIN_W
-				end
+				if newW < MIN_W then dw = MIN_W - resizeStartSize.X; newW = MIN_W end
 				newX = newX + dw / 2
-			elseif resizeDirX == 1 then -- Тянем вправо
+			elseif resizeDirX == 1 then
 				local dw = delta.X
 				newW = newW + dw
-				if newW < MIN_W then
-					dw = MIN_W - resizeStartSize.X
-					newW = MIN_W
-				end
+				if newW < MIN_W then dw = MIN_W - resizeStartSize.X; newW = MIN_W end
 				newX = newX + dw / 2
 			end
 
-			if resizeDirY == -1 then -- Тянем вверх
+			if resizeDirY == -1 then
 				local dh = -delta.Y
 				newH = newH + dh
-				if newH < MIN_H then
-					dh = MIN_H - resizeStartSize.Y
-					newH = MIN_H
-				end
+				if newH < MIN_H then dh = MIN_H - resizeStartSize.Y; newH = MIN_H end
 				newY = newY + dh / 2
-			elseif resizeDirY == 1 then -- Тянем вниз
+			elseif resizeDirY == 1 then
 				local dh = delta.Y
 				newH = newH + dh
-				if newH < MIN_H then
-					dh = MIN_H - resizeStartSize.Y
-					newH = MIN_H
-				end
+				if newH < MIN_H then dh = MIN_H - resizeStartSize.Y; newH = MIN_H end
 				newY = newY + dh / 2
 			end
 
@@ -4111,13 +4133,6 @@ function UI:CreateWindow(o)
 			dragging = false
 			if isResizing then
 				isResizing = false
-				-- Скрываем подсказки, если мышь отпущена вне зоны
-				for _, child in ipairs(main:GetChildren()) do
-					if child.Name:match("^Resize") then
-						local vis = child:FindFirstChildWhichIsA("Frame")
-						if vis then tween(vis, .2, { BackgroundTransparency = 1 }) end
-					end
-				end
 			end
 		end
 	end)
