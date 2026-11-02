@@ -1811,7 +1811,7 @@ table.insert(__conns, {
 Window = UI:CreateWindow({
     Title = "Zibvabva",
     Subtitle = "babyun42",
-    Version = "v1.0",
+    Version = "v1.1",
     Theme = "Dark",
     ToggleKey = Enum.KeyCode.CapsLock,
     LogoShape = "Flower",
