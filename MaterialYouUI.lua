@@ -3877,6 +3877,72 @@ function UI:CreateWindow(o)
 	win.Main = main
 	win._scale = new("UIScale", { Scale = .92, Parent = main })
 
+	-- ============ RESIZE HANDLES ============
+	local MIN_W, MIN_H = 500, 400
+	local HANDLE_THICK = 16
+	local isResizing = false
+	local resizeStartMouse, resizeStartSize, resizeStartPos
+	local resizeDirX, resizeDirY = 0, 0
+
+	local function addResizeHandle(name, ax, ay, size, isX, isY, dx, dy)
+		local h = new("TextButton", {
+			Name = name,
+			AnchorPoint = Vector2.new(ax, ay),
+			Position = UDim2.new(ax, 0, ay, 0),
+			Size = size,
+			BackgroundTransparency = 1,
+			Text = "",
+			AutoButtonColor = false,
+			Parent = main,
+			ZIndex = 10
+		})
+
+		-- Белая подсказка (кружок для углов, палочка для краев)
+		local vis = new("Frame", {
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.fromScale(0.5, 0.5),
+			Size = UDim2.fromOffset(isX and (isY and 8 or 4) or 24, isY and (isX and 8 or 4) or 24),
+			BackgroundColor3 = Color3.new(1, 1, 1),
+			BackgroundTransparency = 1, -- Скрыто по умолчанию
+			BorderSizePixel = 0,
+			Parent = h
+		})
+		corner(vis, FULL)
+
+		h.MouseEnter:Connect(function()
+			tween(vis, .15, { BackgroundTransparency = 0.3 })
+		end)
+		h.MouseLeave:Connect(function()
+			if not isResizing then
+				tween(vis, .2, { BackgroundTransparency = 1 })
+			end
+		end)
+
+		h.InputBegan:Connect(function(input)
+			if input.UserInputType == Enum.UserInputType.MouseButton1 then
+				isResizing = true
+				resizeStartMouse = UserInputService:GetMouseLocation()
+				resizeStartSize = main.AbsoluteSize
+				resizeStartPos = main.Position
+				resizeDirX = dx
+				resizeDirY = dy
+				tween(vis, .1, { BackgroundTransparency = 0 })
+			end
+		end)
+	end
+
+	-- Создаем 8 зон
+	addResizeHandle("ResizeTL", 0, 0, UDim2.fromOffset(HANDLE_THICK, HANDLE_THICK), true, true, -1, -1)
+	addResizeHandle("ResizeTR", 1, 0, UDim2.fromOffset(HANDLE_THICK, HANDLE_THICK), true, true, 1, -1)
+	addResizeHandle("ResizeBL", 0, 1, UDim2.fromOffset(HANDLE_THICK, HANDLE_THICK), true, true, -1, 1)
+	addResizeHandle("ResizeBR", 1, 1, UDim2.fromOffset(HANDLE_THICK, HANDLE_THICK), true, true, 1, 1)
+
+	addResizeHandle("ResizeT", .5, 0, UDim2.new(1, -HANDLE_THICK*2, 0, HANDLE_THICK), false, true, 0, -1)
+	addResizeHandle("ResizeB", .5, 1, UDim2.new(1, -HANDLE_THICK*2, 0, HANDLE_THICK), false, true, 0, 1)
+	addResizeHandle("ResizeL", 0, .5, UDim2.new(0, HANDLE_THICK, 1, -HANDLE_THICK*2), true, false, -1, 0)
+	addResizeHandle("ResizeR", 1, .5, UDim2.new(0, HANDLE_THICK, 1, -HANDLE_THICK*2), true, false, 1, 0)
+	-- =========================================
+
 	local header = new("Frame", {
 		BackgroundTransparency = 1,
 		Active = true,
@@ -3989,14 +4055,70 @@ function UI:CreateWindow(o)
 		end
 	end)
 	win:Connect(UserInputService.InputChanged, function(i)
-		if dragging and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then
+		if isResizing and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then
+			local delta = UserInputService:GetMouseLocation() - resizeStartMouse
+			local newW, newH = resizeStartSize.X, resizeStartSize.Y
+			local newX = resizeStartPos.X.Offset
+			local newY = resizeStartPos.Y.Offset
+
+			if resizeDirX == -1 then -- Тянем влево
+				local dw = -delta.X
+				newW = newW + dw
+				if newW < MIN_W then
+					dw = MIN_W - resizeStartSize.X
+					newW = MIN_W
+				end
+				newX = newX + dw / 2
+			elseif resizeDirX == 1 then -- Тянем вправо
+				local dw = delta.X
+				newW = newW + dw
+				if newW < MIN_W then
+					dw = MIN_W - resizeStartSize.X
+					newW = MIN_W
+				end
+				newX = newX + dw / 2
+			end
+
+			if resizeDirY == -1 then -- Тянем вверх
+				local dh = -delta.Y
+				newH = newH + dh
+				if newH < MIN_H then
+					dh = MIN_H - resizeStartSize.Y
+					newH = MIN_H
+				end
+				newY = newY + dh / 2
+			elseif resizeDirY == 1 then -- Тянем вниз
+				local dh = delta.Y
+				newH = newH + dh
+				if newH < MIN_H then
+					dh = MIN_H - resizeStartSize.Y
+					newH = MIN_H
+				end
+				newY = newY + dh / 2
+			end
+
+			main.Size = UDim2.fromOffset(newW, newH)
+			main.Position = UDim2.new(0.5, newX, 0.5, newY)
+
+		elseif dragging and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then
 			local d = i.Position - dragStart
 			main.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + d.X, startPos.Y.Scale, startPos.Y.Offset + d.Y)
 		end
 	end)
+
 	win:Connect(UserInputService.InputEnded, function(i)
 		if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
 			dragging = false
+			if isResizing then
+				isResizing = false
+				-- Скрываем подсказки, если мышь отпущена вне зоны
+				for _, child in ipairs(main:GetChildren()) do
+					if child.Name:match("^Resize") then
+						local vis = child:FindFirstChildWhichIsA("Frame")
+						if vis then tween(vis, .2, { BackgroundTransparency = 1 }) end
+					end
+				end
+			end
 		end
 	end)
 
