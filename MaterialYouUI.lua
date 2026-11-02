@@ -1778,7 +1778,7 @@ function Container:AddMultiDropdown(o)
 	local row = makeRow(self, o, 150)
 	local options = o.Options or {}
 	local selected = o.Default or {}
-	local isSingle = o.Single == true -- <<< НОВОЕ: флаг одиночного выбора
+	local isSingle = o.Single == true -- <<< Флаг одиночного выбора
 
 	local btn = new("TextButton", {
 		Text = "",
@@ -1914,7 +1914,7 @@ function Container:AddMultiDropdown(o)
 				win:Bind(tl, "TextColor3", isSel and "onSecondaryContainer" or "onSurface")
 
 				it.MouseButton1Click:Connect(function()
-					-- НОВАЯ ЛОГИКА ОДИНОЧНОГО ВЫБОРА
+					-- ЛОГИКА ОДИНОЧНОГО ВЫБОРА
 					if isSingle then
 						local wasSelected = selected[optVal]
 						for k in pairs(selected) do selected[k] = nil end
