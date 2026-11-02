@@ -1676,7 +1676,11 @@ function Container:AddDropdown(o)
 			Parent = overlay,
 		})
 		local itemH = 44
-		local listH = math.min(#options * itemH + 16, 248)
+
+		-- Ограничиваем высоту, чтобы она не была больше самого окна
+		local maxH = math.max(overlay.AbsoluteSize.Y - 16, 80)
+		local listH = math.min(#options * itemH + 16, math.min(maxH, 248))
+
 		local w = math.max(btn.AbsoluteSize.X, 170)
 		local pos = btn.AbsolutePosition - overlay.AbsolutePosition
 		local x = pos.X + btn.AbsoluteSize.X - w
@@ -1684,6 +1688,11 @@ function Container:AddDropdown(o)
 		if y + listH > overlay.AbsoluteSize.Y - 8 then
 			y = pos.Y - listH - 6
 		end
+
+		-- ЖЕСТКОЕ ОГРАНИЧЕНИЕ, ЧТОБЫ НЕ ВЫЛЕЗАЛО ЗА КРАЯ
+		x = math.clamp(x, 8, math.max(8, overlay.AbsoluteSize.X - w - 8))
+		y = math.clamp(y, 8, math.max(8, overlay.AbsoluteSize.Y - listH - 8))
+
 		local popup = new("CanvasGroup", {
 			Position = UDim2.fromOffset(x, y + 8),
 			Size = UDim2.fromOffset(w, listH),
@@ -1745,11 +1754,12 @@ function Container:AddDropdown(o)
 		tween(chev, .2, { Rotation = 180 })
 
 		local closed = false
+		local scrollConn
+
 		local function close()
-			if closed then
-				return
-			end
+			if closed then return end
 			closed = true
+			if scrollConn then scrollConn:Disconnect() end
 			tween(chev, .2, { Rotation = 0 })
 			local tw = tween(popup, .15, { GroupTransparency = 1 })
 			catcher:Destroy()
@@ -1761,9 +1771,21 @@ function Container:AddDropdown(o)
 				end
 			end)
 		end
+
 		win._popupClose = close
 		catcher.MouseButton1Click:Connect(function()
 			win:_closePopup()
+		end)
+
+		-- АВТО-ЗАКРЫТИЕ ПРИ СКРОЛЛЕ МЫШКОЙ ВНЕ ДРОПДАУНА
+		scrollConn = UserInputService.InputChanged:Connect(function(input)
+			if input.UserInputType == Enum.UserInputType.MouseWheel then
+				local mp = UserInputService:GetMouseLocation()
+				local ppos, psize = popup.AbsolutePosition, popup.AbsoluteSize
+				if mp.X < ppos.X or mp.X > ppos.X + psize.X or mp.Y < ppos.Y or mp.Y > ppos.Y + psize.Y then
+					win:_closePopup()
+				end
+			end
 		end)
 	end
 	btn.MouseButton1Click:Connect(function()
@@ -1778,7 +1800,7 @@ function Container:AddMultiDropdown(o)
 	local row = makeRow(self, o, 150)
 	local options = o.Options or {}
 	local selected = o.Default or {}
-	local isSingle = o.Single == true -- <<< Флаг одиночного выбора
+	local isSingle = o.Single == true
 
 	local btn = new("TextButton", {
 		Text = "",
@@ -1853,11 +1875,19 @@ function Container:AddMultiDropdown(o)
 			Text = "", BackgroundTransparency = 1, Size = UDim2.fromScale(1, 1), ZIndex = 60, Parent = overlay,
 		})
 		local w = 220
-		local listH = 300
+
+		-- Ограничиваем высоту окна
+		local maxH = math.max(overlay.AbsoluteSize.Y - 16, 100)
+		local listH = math.min(maxH, 300)
+
 		local pos = btn.AbsolutePosition - overlay.AbsolutePosition
 		local x = pos.X + btn.AbsoluteSize.X - w
 		local y = pos.Y + btn.AbsoluteSize.Y + 6
 		if y + listH > overlay.AbsoluteSize.Y - 8 then y = pos.Y - listH - 6 end
+
+		-- ЖЕСТКОЕ ОГРАНИЧЕНИЕ
+		x = math.clamp(x, 8, math.max(8, overlay.AbsoluteSize.X - w - 8))
+		y = math.clamp(y, 8, math.max(8, overlay.AbsoluteSize.Y - listH - 8))
 
 		local popup = new("CanvasGroup", {
 			Position = UDim2.fromOffset(x, y),
@@ -1914,13 +1944,10 @@ function Container:AddMultiDropdown(o)
 				win:Bind(tl, "TextColor3", isSel and "onSecondaryContainer" or "onSurface")
 
 				it.MouseButton1Click:Connect(function()
-					-- ЛОГИКА ОДИНОЧНОГО ВЫБОРА
 					if isSingle then
 						local wasSelected = selected[optVal]
 						for k in pairs(selected) do selected[k] = nil end
-						if not wasSelected then
-							selected[optVal] = true
-						end
+						if not wasSelected then selected[optVal] = true end
 					else
 						selected[optVal] = not selected[optVal]
 						if not selected[optVal] then selected[optVal] = nil end
@@ -1934,7 +1961,6 @@ function Container:AddMultiDropdown(o)
 		end
 		populate()
 
-		-- Логика поиска
 		searchBox:GetPropertyChangedSignal("Text"):Connect(function()
 			local txt = searchBox.Text:lower()
 			for _, child in ipairs(sc:GetChildren()) do
@@ -1951,9 +1977,12 @@ function Container:AddMultiDropdown(o)
 		tween(chev, .2, { Rotation = 180 })
 
 		local closed = false
+		local scrollConn
+
 		local function close()
 			if closed then return end
 			closed = true
+			if scrollConn then scrollConn:Disconnect() end
 			tween(chev, .2, { Rotation = 0 })
 			local tw = tween(popup, .15, { GroupTransparency = 1 })
 			catcher:Destroy()
@@ -1962,6 +1991,17 @@ function Container:AddMultiDropdown(o)
 		end
 		win._popupClose = close
 		catcher.MouseButton1Click:Connect(function() win:_closePopup() end)
+
+		-- АВТО-ЗАКРЫТИЕ ПРИ СКРОЛЛЕ ВНЕ ДРОПДАУНА
+		scrollConn = UserInputService.InputChanged:Connect(function(input)
+			if input.UserInputType == Enum.UserInputType.MouseWheel then
+				local mp = UserInputService:GetMouseLocation()
+				local ppos, psize = popup.AbsolutePosition, popup.AbsoluteSize
+				if mp.X < ppos.X or mp.X > ppos.X + psize.X or mp.Y < ppos.Y or mp.Y > ppos.Y + psize.Y then
+					win:_closePopup()
+				end
+			end
+		end)
 	end
 	btn.MouseButton1Click:Connect(open)
 	return obj
