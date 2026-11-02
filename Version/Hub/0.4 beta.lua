@@ -620,12 +620,12 @@ gh.MouseButton1Click:Connect(function()
 	ghBusy = true
 	if setclipboard then
 		setclipboard(GITHUB_URL)
-		ghText.Text = "✅ Copied!"
+		ghText.Text = "Copied!"
 	else
 		ghText.Text = "❌ Executor unsupported"
 	end
 	task.delay(1.5, function()
-		ghText.Text = "🐙 My GitHub"
+		ghText.Text = "My GitHub"
 		ghBusy = false
 	end)
 end)
