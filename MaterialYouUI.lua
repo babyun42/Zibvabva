@@ -1778,6 +1778,7 @@ function Container:AddMultiDropdown(o)
 	local row = makeRow(self, o, 150)
 	local options = o.Options or {}
 	local selected = o.Default or {}
+	local isSingle = o.Single == true -- <<< НОВОЕ: флаг одиночного выбора
 
 	local btn = new("TextButton", {
 		Text = "",
@@ -1817,7 +1818,6 @@ function Container:AddMultiDropdown(o)
 		if count == 0 then
 			valueLbl.Text = "Select..."
 		elseif count == 1 then
-			-- Ищем DisplayName для этого значения
 			local displayName = lastName
 			for _, opt in ipairs(options) do
 				local val = type(opt) == "table" and opt.value or opt
@@ -1835,7 +1835,7 @@ function Container:AddMultiDropdown(o)
 
 	local obj = { Row = row }
 	function obj.Set(_, v, silent)
-		selected = v
+		selected = v or {}
 		updateText()
 		if not silent and o.Callback then task.spawn(o.Callback, selected) end
 	end
@@ -1914,8 +1914,18 @@ function Container:AddMultiDropdown(o)
 				win:Bind(tl, "TextColor3", isSel and "onSecondaryContainer" or "onSurface")
 
 				it.MouseButton1Click:Connect(function()
-					selected[optVal] = not selected[optVal]
-					if not selected[optVal] then selected[optVal] = nil end
+					-- НОВАЯ ЛОГИКА ОДИНОЧНОГО ВЫБОРА
+					if isSingle then
+						local wasSelected = selected[optVal]
+						for k in pairs(selected) do selected[k] = nil end
+						if not wasSelected then
+							selected[optVal] = true
+						end
+					else
+						selected[optVal] = not selected[optVal]
+						if not selected[optVal] then selected[optVal] = nil end
+					end
+
 					populate()
 					updateText()
 					if o.Callback then task.spawn(o.Callback, selected) end
