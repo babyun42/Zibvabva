@@ -3877,99 +3877,208 @@ function UI:CreateWindow(o)
 	win.Main = main
 	win._scale = new("UIScale", { Scale = .92, Parent = main })
 
-	-- ============ RESIZE HANDLES ============
-	local MIN_W, MIN_H = 500, 400
+	-- ============ RESIZE: плавающие подсказки у краёв ============
+	-- Подсказка — прозрачная «пилюля» рядом с краем окна (не касается его). Проявляется по мере приближения мыши,
+	-- ползёт вдоль края за курсором; у углов — уголок. Тянешь за зону у края/угла — окно растягивается.
+	local MIN_W = o.MinSize and o.MinSize.X or 500
+	local MIN_H = o.MinSize and o.MinSize.Y or 400
+	local GAP, THICK, LEN = 6, 4, 44 -- отступ от окна / толщина / длина пилюли
+	local RAD, ARC_N = 28, 6 -- радиус скругления окна (как у main) / сегментов в угловой дуге
+	local OUT, INN, CS = 14, 5, 18 -- зона захвата: наружу от края / внутрь от края / размер угловой зоны
+	local FADE_R = 80 -- с какого расстояния (px) подсказка начинает проявляться
+	local EDGE_R = 36 -- отступ пилюли от углов вдоль края
 	local isResizing = false
-	local resizeStartMouse, resizeStartSize, resizeStartPos
-	local resizeDirX, resizeDirY = 0, 0
-	local resizeHints = {}
+	local grab = { dx = 0, dy = 0 }
+	local rs = {}
 
-	local function addResizeHandle(name, ax, ay, width, height, dx, dy)
-		local isX = dx ~= 0
-		local isY = dy ~= 0
-
-		-- Зона захвата (чуть больше самого окна, чтобы было удобно тянуть)
-		local h = new("TextButton", {
-			Name = name,
-			AnchorPoint = Vector2.new(0.5, 0.5),
-			Position = UDim2.new(ax, 0, ay, 0),
-			Size = UDim2.new(width, height),
-			BackgroundTransparency = 1,
-			Text = "",
-			AutoButtonColor = false,
-			Parent = main,
-			ZIndex = 10
-		})
-
-		-- Визуальная подсказка (крепим напрямую к gui, чтобы она не обрезалась окном)
-		local visW = isX and (isY and 10 or 4) or 16
-		local visH = isY and (isX and 10 or 4) or 16
-
-		local vis = new("Frame", {
-			Name = name .. "_Hint",
-			AnchorPoint = Vector2.new(0.5, 0.5),
-			Position = UDim2.new(0.5, 0, 0.5, 0),
-			Size = UDim2.fromOffset(visW, visH),
-			BackgroundColor3 = Color3.new(1, 1, 1),
-			BackgroundTransparency = 1,
+	local function mkBar()
+		local f = new("Frame", {
+			AnchorPoint = Vector2.new(.5, .5),
 			BorderSizePixel = 0,
+			BackgroundTransparency = 1,
+			Visible = false,
+			ZIndex = 100,
 			Parent = gui,
-			ZIndex = 20
 		})
-		corner(vis, FULL)
-
-		table.insert(resizeHints, { frame = vis, h = h, dx = dx * 10, dy = dy * 10, lastAlpha = 1 })
-
-		h.InputBegan:Connect(function(input)
-			if input.UserInputType == Enum.UserInputType.MouseButton1 then
-				isResizing = true
-				resizeStartMouse = UserInputService:GetMouseLocation()
-				resizeStartSize = main.AbsoluteSize
-				resizeStartPos = main.Position
-				resizeDirX = dx
-				resizeDirY = dy
-			end
-		end)
+		corner(f, FULL)
+		win:Bind(f, "BackgroundColor3", "primary")
+		return f
 	end
 
-	-- Создаем 8 зон
-	addResizeHandle("ResizeTL", 0, 0, UDim.new(0, 24), UDim.new(0, 24), -1, -1)
-	addResizeHandle("ResizeTR", 1, 0, UDim.new(0, 24), UDim.new(0, 24), 1, -1)
-	addResizeHandle("ResizeBL", 0, 1, UDim.new(0, 24), UDim.new(0, 24), -1, 1)
-	addResizeHandle("ResizeBR", 1, 1, UDim.new(0, 24), UDim.new(0, 24), 1, 1)
-
-	addResizeHandle("ResizeT", .5, 0, UDim.new(1, -48), UDim.new(0, 16), 0, -1)
-	addResizeHandle("ResizeB", .5, 1, UDim.new(1, -48), UDim.new(0, 16), 0, 1)
-	addResizeHandle("ResizeL", 0, .5, UDim.new(0, 16), UDim.new(1, -48), -1, 0)
-	addResizeHandle("ResizeR", 1, .5, UDim.new(0, 16), UDim.new(1, -48), 1, 0)
-
-	-- Плавное появление при приближении мыши
-	win:Connect(RunService.RenderStepped, function()
-		if not win._ready or not win.Visible or not main.Visible then return end
-
-		local mousePos = UserInputService:GetMouseLocation()
-
-		for _, item in ipairs(resizeHints) do
-			-- Синхронизируем позицию подсказки с краем окна (на случай перетаскивания)
-			local hPos = item.h.AbsolutePosition
-			local hSize = item.h.AbsoluteSize
-			item.frame.Position = UDim2.fromOffset(hPos.X + hSize.X / 2 + item.dx, hPos.Y + hSize.Y / 2 + item.dy)
-
-			local center = item.frame.AbsolutePosition + item.frame.AbsoluteSize / 2
-			local dist = (mousePos - center).Magnitude
-
-			local targetAlpha = 1
-			-- Если мышь ближе 60 пикселей, начинаем проявлять
-			if dist < 60 then
-				targetAlpha = math.clamp((dist - 10) / 50, 0, 1)
+	local hints = {}
+	local HINT_DIRS = {
+		{ 0, -1 }, { 0, 1 }, { -1, 0 }, { 1, 0 },
+		{ -1, -1 }, { 1, -1 }, { -1, 1 }, { 1, 1 },
+	}
+	for _, d in ipairs(HINT_DIRS) do
+		local h = { dx = d[1], dy = d[2], a = 1, bars = { mkBar() } }
+		if d[1] ~= 0 and d[2] ~= 0 then
+			for i = 2, ARC_N do
+				h.bars[i] = mkBar()
 			end
-			if isResizing then targetAlpha = 0 end -- При ресайзе подсказка скрывается
+		end
+		hints[#hints + 1] = h
+	end
 
-			item.lastAlpha = item.lastAlpha + (targetAlpha - item.lastAlpha) * 0.2
-			item.frame.BackgroundTransparency = item.lastAlpha
+	local function mainRect()
+		local p, s = main.AbsolutePosition, main.AbsoluteSize
+		return p.X, p.Y, p.X + s.X, p.Y + s.Y
+	end
+
+	-- в какой зоне захвата мышь: dx, dy (0,0 — нигде)
+	local function hoverZone()
+		if isResizing then
+			return grab.dx, grab.dy
+		end
+		if not (win._ready and win.Visible and main.Visible) then
+			return 0, 0
+		end
+		local m = UserInputService:GetMouseLocation()
+		local L, T, R, B = mainRect()
+		if m.X < L - OUT or m.X > R + OUT or m.Y < T - OUT or m.Y > B + OUT then
+			return 0, 0
+		end
+		local dx, dy = 0, 0
+		if m.X <= L + CS then dx = -1 elseif m.X >= R - CS then dx = 1 end
+		if m.Y <= T + CS then dy = -1 elseif m.Y >= B - CS then dy = 1 end
+		if dx ~= 0 and dy ~= 0 then
+			return dx, dy -- угол
+		end
+		-- боковые зоны: узкая полоса вдоль края (снаружи OUT, внутри INN)
+		if m.X <= L + INN then return -1, 0 end
+		if m.X >= R - INN then return 1, 0 end
+		if m.Y <= T + INN then return 0, -1 end
+		if m.Y >= B - INN then return 0, 1 end
+		return 0, 0
+	end
+
+	win:Connect(UserInputService.InputBegan, function(input)
+		if input.UserInputType ~= Enum.UserInputType.MouseButton1 then
+			return
+		end
+		local dx, dy = hoverZone()
+		if dx == 0 and dy == 0 then
+			return
+		end
+		local L, T, R, B = mainRect()
+		isResizing = true
+		grab.dx, grab.dy = dx, dy
+		rs = { mouse = UserInputService:GetMouseLocation(), L = L, T = T, R = R, B = B }
+		win._maximized = false
+	end)
+
+	win:Connect(UserInputService.InputEnded, function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 then
+			isResizing = false
 		end
 	end)
-	-- =========================================
+
+	win:Connect(RunService.RenderStepped, function(dt)
+		local active = win._ready and win.Visible and main.Visible
+		if not active then
+			isResizing = false
+			for _, h in ipairs(hints) do
+				for _, b in ipairs(h.bars) do
+					b.Visible = false
+				end
+				h.a = 1
+			end
+			return
+		end
+
+		local m = UserInputService:GetMouseLocation()
+
+		-- растягивание: противоположный край остаётся на месте
+		if isResizing then
+			local d = m - rs.mouse
+			local L, T, R, B = rs.L, rs.T, rs.R, rs.B
+			local s = win._scale.Scale
+			local minW, minH = MIN_W * s, MIN_H * s
+			local vp = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or Vector2.new(1920, 1080)
+			if grab.dx == -1 then
+				L = math.min(math.max(rs.L + d.X, 0), R - minW)
+			elseif grab.dx == 1 then
+				R = math.max(math.min(rs.R + d.X, vp.X), L + minW)
+			end
+			if grab.dy == -1 then
+				T = math.min(math.max(rs.T + d.Y, 0), B - minH)
+			elseif grab.dy == 1 then
+				B = math.max(math.min(rs.B + d.Y, vp.Y), T + minH)
+			end
+			main.Size = UDim2.fromOffset((R - L) / s, (B - T) / s)
+			main.Position = UDim2.fromOffset((L + R) / 2, (T + B) / 2)
+		end
+
+		local L, T, R, B = mainRect()
+		local hx, hy = hoverZone()
+		local k = 1 - math.exp(-dt * 14)
+
+		for _, h in ipairs(hints) do
+			local dx, dy = h.dx, h.dy
+			local isCorner = dx ~= 0 and dy ~= 0
+			local hot = (hx == dx and hy == dy)
+
+			-- расстояние от мыши до «своего» участка границы окна и позиция подсказки
+			local dist
+			if isCorner then
+				local cx, cy = dx < 0 and L or R, dy < 0 and T or B
+				dist = math.sqrt((m.X - cx) ^ 2 + (m.Y - cy) ^ 2)
+				-- дуга вокруг скруглённого угла окна, на расстоянии GAP от него
+				local sc = win._scale.Scale
+				local r0 = RAD * sc
+				local ccx, ccy = cx - dx * r0, cy - dy * r0 -- центр скругления
+				local rr = r0 + GAP
+				local prev
+				for i = 0, ARC_N do
+					local th = math.rad(12 + (78 - 12) * i / ARC_N)
+					local pt = Vector2.new(ccx + dx * rr * math.cos(th), ccy + dy * rr * math.sin(th))
+					if prev then
+						local bar = h.bars[i]
+						local mid = (pt + prev) / 2
+						local v = pt - prev
+						bar.Size = UDim2.fromOffset(v.Magnitude + 1.5, THICK)
+						bar.Position = UDim2.fromOffset(mid.X, mid.Y)
+						bar.Rotation = math.deg(math.atan2(v.Y, v.X))
+					end
+					prev = pt
+				end
+			elseif dy ~= 0 then
+				local x1, x2 = L + EDGE_R, R - EDGE_R
+				local ey = dy < 0 and T or B
+				local px = math.clamp(m.X, x1 + LEN / 2, math.max(x1 + LEN / 2, x2 - LEN / 2))
+				dist = math.sqrt((m.X - math.clamp(m.X, x1, x2)) ^ 2 + (m.Y - ey) ^ 2)
+				local b = h.bars[1]
+				b.Size = UDim2.fromOffset(LEN, THICK)
+				b.Position = UDim2.fromOffset(px, ey + dy * (GAP + THICK / 2))
+			else
+				local y1, y2 = T + EDGE_R, B - EDGE_R
+				local ex = dx < 0 and L or R
+				local py = math.clamp(m.Y, y1 + LEN / 2, math.max(y1 + LEN / 2, y2 - LEN / 2))
+				dist = math.sqrt((m.X - ex) ^ 2 + (m.Y - math.clamp(m.Y, y1, y2)) ^ 2)
+				local b = h.bars[1]
+				b.Size = UDim2.fromOffset(THICK, LEN)
+				b.Position = UDim2.fromOffset(ex + dx * (GAP + THICK / 2), py)
+			end
+
+			-- прозрачность: чем ближе мышь, тем заметнее; в зоне захвата — почти непрозрачна
+			local target = 1
+			if isResizing then
+				target = hot and .12 or 1
+			else
+				local t = math.clamp(1 - dist / FADE_R, 0, 1)
+				target = 1 - t * t * .65 -- до .35 при подходе вплотную
+				if hot then
+					target = .12
+				end
+			end
+			h.a += (target - h.a) * k
+			for _, b in ipairs(h.bars) do
+				b.BackgroundTransparency = h.a
+				b.Visible = h.a < .985
+			end
+		end
+	end)
+	-- =============================================================
 
 	local header = new("Frame", {
 		BackgroundTransparency = 1,
@@ -4079,43 +4188,23 @@ function UI:CreateWindow(o)
 	local dragging, dragStart, startPos = false, nil, nil
 	header.InputBegan:Connect(function(i)
 		if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
+			local zx, zy = hoverZone()
+			if zx ~= 0 or zy ~= 0 then
+				return -- это захват края окна, а не перетаскивание
+			end
 			dragging, dragStart, startPos = true, i.Position, main.Position
 		end
 	end)
 	win:Connect(UserInputService.InputChanged, function(i)
-		if isResizing and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then
-			local delta = UserInputService:GetMouseLocation() - resizeStartMouse
-			local newW, newH = resizeStartSize.X, resizeStartSize.Y
-			local newX = resizeStartPos.X.Offset
-			local newY = resizeStartPos.Y.Offset
-
-			-- Математика ресайза (сохраняет противоположный край на месте)
-			if resizeDirX == -1 then
-				newW = resizeStartSize.X - delta.X
-				if newW < MIN_W then newW = MIN_W end
-				newX = resizeStartPos.X.Offset + (resizeStartSize.X - newW) / 2
-			elseif resizeDirX == 1 then
-				newW = resizeStartSize.X + delta.X
-				if newW < MIN_W then newW = MIN_W end
-				newX = resizeStartPos.X.Offset + (newW - resizeStartSize.X) / 2
-			end
-
-			if resizeDirY == -1 then
-				newH = resizeStartSize.Y - delta.Y
-				if newH < MIN_H then newH = MIN_H end
-				newY = resizeStartPos.Y.Offset + (resizeStartSize.Y - newH) / 2
-			elseif resizeDirY == 1 then
-				newH = resizeStartSize.Y + delta.Y
-				if newH < MIN_H then newH = MIN_H end
-				newY = resizeStartPos.Y.Offset + (newH - resizeStartSize.Y) / 2
-			end
-
-			main.Size = UDim2.fromOffset(newW, newH)
-			main.Position = UDim2.new(0.5, newX, 0.5, newY)
-
-		elseif dragging and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then
+		if dragging and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then
 			local d = i.Position - dragStart
 			main.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + d.X, startPos.Y.Scale, startPos.Y.Offset + d.Y)
+		end
+	end)
+
+	win:Connect(UserInputService.InputEnded, function(i)
+		if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
+			dragging = false
 		end
 	end)
 
