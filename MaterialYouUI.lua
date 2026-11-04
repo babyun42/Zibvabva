@@ -3920,9 +3920,27 @@ function UI:CreateWindow(o)
 		hints[#hints + 1] = h
 	end
 
+	-- Прямоугольник окна в координатах самого ScreenGui (считаем по Position/Size, а не по AbsolutePosition:
+	-- в разных окружениях Absolute-координаты и координаты потомков могут расходиться на высоту верхней панели).
 	local function mainRect()
-		local p, s = main.AbsolutePosition, main.AbsoluteSize
-		return p.X, p.Y, p.X + s.X, p.Y + s.Y
+		local gs = gui.AbsoluteSize
+		local sc = win._scale.Scale
+		local pos, sz = main.Position, main.Size
+		local cx = pos.X.Scale * gs.X + pos.X.Offset
+		local cy = pos.Y.Scale * gs.Y + pos.Y.Offset
+		local w = (sz.X.Scale * gs.X + sz.X.Offset) * sc
+		local h = (sz.Y.Scale * gs.Y + sz.Y.Offset) * sc
+		return cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2
+	end
+
+	-- Мышь в координатах ScreenGui. calShift определяется по шапке (см. ниже): 0 или высота верхней панели.
+	local calShift = nil
+	local function mouseGui()
+		local m = UserInputService:GetMouseLocation()
+		local L, T = mainRect()
+		local ap = main.AbsolutePosition
+		local sy = calShift or UI._shiftY or 0
+		return Vector2.new(m.X - (ap.X - L), m.Y - sy - (ap.Y - T))
 	end
 
 	-- в какой зоне захвата мышь: dx, dy (0,0 — нигде)
@@ -3933,7 +3951,7 @@ function UI:CreateWindow(o)
 		if not (win._ready and win.Visible and main.Visible) then
 			return 0, 0
 		end
-		local m = UserInputService:GetMouseLocation()
+		local m = mouseGui()
 		local L, T, R, B = mainRect()
 		if m.X < L - OUT or m.X > R + OUT or m.Y < T - OUT or m.Y > B + OUT then
 			return 0, 0
@@ -3963,7 +3981,7 @@ function UI:CreateWindow(o)
 		local L, T, R, B = mainRect()
 		isResizing = true
 		grab.dx, grab.dy = dx, dy
-		rs = { mouse = UserInputService:GetMouseLocation(), L = L, T = T, R = R, B = B }
+		rs = { mouse = mouseGui(), L = L, T = T, R = R, B = B }
 		win._maximized = false
 	end)
 
@@ -3986,7 +4004,7 @@ function UI:CreateWindow(o)
 			return
 		end
 
-		local m = UserInputService:GetMouseLocation()
+		local m = mouseGui()
 
 		-- растягивание: противоположный край остаётся на месте
 		if isResizing then
@@ -3994,7 +4012,7 @@ function UI:CreateWindow(o)
 			local L, T, R, B = rs.L, rs.T, rs.R, rs.B
 			local s = win._scale.Scale
 			local minW, minH = MIN_W * s, MIN_H * s
-			local vp = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or Vector2.new(1920, 1080)
+			local vp = gui.AbsoluteSize
 			if grab.dx == -1 then
 				L = math.min(math.max(rs.L + d.X, 0), R - minW)
 			elseif grab.dx == 1 then
@@ -4086,6 +4104,26 @@ function UI:CreateWindow(o)
 		Size = UDim2.new(1, 0, 0, 64),
 		Parent = main,
 	})
+	header.MouseMoved:Connect(function()
+		if calShift ~= nil then
+			return
+		end
+		local inset = GuiService:GetGuiInset().Y
+		if inset <= 0 then
+			calShift = 0
+			return
+		end
+		local m = UserInputService:GetMouseLocation()
+		local p, sz = header.AbsolutePosition, header.AbsoluteSize
+		local a = m.Y >= p.Y and m.Y <= p.Y + sz.Y
+		local b = (m.Y - inset) >= p.Y and (m.Y - inset) <= p.Y + sz.Y
+		if a and not b then
+			calShift = 0
+		elseif b and not a then
+			calShift = inset
+		end
+	end)
+
 	local left = new("Frame", {
 		BackgroundTransparency = 1,
 		AutomaticSize = Enum.AutomaticSize.X,
