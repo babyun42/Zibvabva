@@ -292,6 +292,36 @@ local function loadSavedTheme()
 	return nil
 end
 
+-- ============== Window size ==============
+local function saveWindowSize(w, h)
+	local v = string.format("%d,%d", math.floor(w + .5), math.floor(h + .5))
+	GENV.__MaterialYouUI_Size = v
+	setHolderValue("WindowSize", v)
+	if fsAvailable() then
+		fsWrite("MaterialYouUI_size.txt", v)
+	end
+end
+
+local function loadWindowSize()
+	local v = GENV.__MaterialYouUI_Size
+	if type(v) ~= "string" or v == "" then
+		v = getHolderValue("WindowSize", "StringValue")
+	end
+	if type(v) ~= "string" or v == "" then
+		v = fsRead("MaterialYouUI_size.txt")
+	end
+	if type(v) ~= "string" then
+		return nil
+	end
+	local w, h = v:match("^%s*(%d+)%s*,%s*(%d+)%s*$")
+	w, h = tonumber(w), tonumber(h)
+	if w and h then
+		GENV.__MaterialYouUI_Size = string.format("%d,%d", w, h)
+		return Vector2.new(w, h)
+	end
+	return nil
+end
+
 -- ============== Custom color ==============
 local function saveCustomThemeRaw(color, isDark)
 	GENV.__MaterialYouUI_CustomColor = color
@@ -1565,8 +1595,9 @@ function Container:AddSlider(o)
 		phase = (phase + dt * SPEED * (dragging and 1.8 or 1)) % (math.pi * 2)
 
 		local headX = shown * W
-		handle.Position = UDim2.new(0, headX, 0, MID)
-		rail.Size = UDim2.fromOffset(math.max(W - headX - GAP, 0), TRACK_H)
+		-- ползунок и дорожка заданы долями ширины: при любом изменении размера окна остаются на месте
+		handle.Position = UDim2.new(shown, 0, 0, MID)
+		rail.Size = UDim2.new(1 - shown, -GAP, 0, TRACK_H)
 		stop.Visible = (W - headX) > 26
 		bubble.Position = UDim2.new(0, math.clamp(headX, math.min(26, W / 2), math.max(W - 26, W / 2)), 0, -6)
 
@@ -3858,6 +3889,17 @@ function UI:CreateWindow(o)
 	})
 
 	local size = o.Size or Vector2.new(880, 560)
+	local savedSize = o.SaveSize ~= false and loadWindowSize()
+	if savedSize then
+		-- сохранённый размер, но не больше «развернуть на весь экран»
+		local cam = workspace.CurrentCamera
+		local vp = cam and cam.ViewportSize or Vector2.new(1920, 1080)
+		local maxW, maxH = math.max(vp.X - 80, 300), math.max(vp.Y - 80, 300)
+		size = Vector2.new(
+			math.clamp(savedSize.X, math.min(500, maxW), maxW),
+			math.clamp(savedSize.Y, math.min(400, maxH), maxH)
+		)
+	end
 	win.BaseSize = UDim2.fromOffset(size.X, size.Y)
 
 	local main = new("CanvasGroup", {
@@ -3986,8 +4028,13 @@ function UI:CreateWindow(o)
 	end)
 
 	win:Connect(UserInputService.InputEnded, function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton1 then
+		if input.UserInputType == Enum.UserInputType.MouseButton1 and isResizing then
 			isResizing = false
+			local sz = main.Size
+			win.BaseSize = UDim2.fromOffset(sz.X.Offset, sz.Y.Offset)
+			if o.SaveSize ~= false then
+				saveWindowSize(sz.X.Offset, sz.Y.Offset)
+			end
 		end
 	end)
 
@@ -4011,17 +4058,19 @@ function UI:CreateWindow(o)
 			local d = m - rs.mouse
 			local L, T, R, B = rs.L, rs.T, rs.R, rs.B
 			local s = win._scale.Scale
-			local minW, minH = MIN_W * s, MIN_H * s
 			local vp = gui.AbsoluteSize
+			-- максимум — ровно столько, сколько даёт кнопка «развернуть» (экран минус 80), и не за пределы экрана
+			local maxW, maxH = vp.X - 80, vp.Y - 80
+			local minW, minH = math.min(MIN_W * s, maxW), math.min(MIN_H * s, maxH)
 			if grab.dx == -1 then
-				L = math.min(math.max(rs.L + d.X, 0), R - minW)
+				L = math.min(math.max(rs.L + d.X, 0, R - maxW), R - minW)
 			elseif grab.dx == 1 then
-				R = math.max(math.min(rs.R + d.X, vp.X), L + minW)
+				R = math.max(math.min(rs.R + d.X, vp.X, L + maxW), L + minW)
 			end
 			if grab.dy == -1 then
-				T = math.min(math.max(rs.T + d.Y, 0), B - minH)
+				T = math.min(math.max(rs.T + d.Y, 0, B - maxH), B - minH)
 			elseif grab.dy == 1 then
-				B = math.max(math.min(rs.B + d.Y, vp.Y), T + minH)
+				B = math.max(math.min(rs.B + d.Y, vp.Y, T + maxH), T + minH)
 			end
 			main.Size = UDim2.fromOffset((R - L) / s, (B - T) / s)
 			main.Position = UDim2.fromOffset((L + R) / 2, (T + B) / 2)
